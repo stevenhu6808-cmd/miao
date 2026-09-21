@@ -35,6 +35,17 @@ function calculateIv(a: number, d: number, s: number, level: number): Calculatio
   return { pct, estCp, grade };
 }
 
+function useDebouncedValue<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedValue(value), delay);
+    return () => window.clearTimeout(timer);
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
 function ToolsPage() {
   const [a, setA] = useState(15);
   const [d, setD] = useState(15);
@@ -48,14 +59,11 @@ function ToolsPage() {
   const [floating, setFloating] = useState(false);
   const uploadRef = useRef<HTMLInputElement>(null);
   const scanTimerRef = useRef<number | null>(null);
-  const [calculation, setCalculation] = useState<Calculation>(() => calculateIv(a, d, s, level));
-
-  useEffect(() => {
-    const calculationTimer = window.setTimeout(() => {
-      setCalculation(calculateIv(a, d, s, level));
-    }, 120);
-    return () => window.clearTimeout(calculationTimer);
-  }, [a, d, s, level]);
+  const debouncedA = useDebouncedValue(a, 200);
+  const debouncedD = useDebouncedValue(d, 200);
+  const debouncedS = useDebouncedValue(s, 200);
+  const debouncedLevel = useDebouncedValue(level, 200);
+  const calculation = calculateIv(debouncedA, debouncedD, debouncedS, debouncedLevel);
 
   useEffect(() => {
     const receiveCapture = (event: MessageEvent) => {

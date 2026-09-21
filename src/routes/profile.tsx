@@ -128,14 +128,11 @@ function ProfilePage() {
           variant={draft.vip ? "vip" : "outline"}
           className="w-full"
           onClick={() => {
-            const next = {
-              ...draft,
-              vip: !draft.vip,
-              coins: profile.coins,
-              badges: profile.badges,
-            };
-            setDraft(next);
-            setProfile(next);
+            if (draft.vip) {
+              showToast(t("profile.vipOn"));
+              return;
+            }
+            buyVip();
           }}
         >
           {draft.vip ? t("profile.vipOn") : t("profile.vipOff")}
@@ -223,18 +220,21 @@ function ProfilePage() {
                 className="w-full"
                 onClick={() => {
                   const amount = Number(financeAmount);
+                  const coins = Number(financeCoins);
                   if (
                     !financeAccount.trim() ||
                     !financeContact.trim() ||
                     !Number.isFinite(amount) ||
-                    amount <= 0
+                    amount <= 0 ||
+                    !Number.isInteger(coins) ||
+                    coins <= 0
                   ) {
                     showToast("请完整填写金额、户口信息和联系方式");
                     return;
                   }
                   submitDeposit({
                     amount,
-                    coins: Math.max(1, Number(financeCoins)),
+                    coins,
                     proof: financeProof,
                     accountInfo: financeAccount.trim(),
                     contact: financeContact.trim(),

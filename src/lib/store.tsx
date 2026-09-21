@@ -476,9 +476,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (authUser?.role !== "player") return;
     writeStored("raid-nexus-profile", profile);
     setAccounts((current) => {
-      const next = current.map((account) =>
-        account.username === authUser.username ? { ...account, profile } : account,
-      );
+      let changed = false;
+      const next = current.map((account) => {
+        if (account.username !== authUser.username) return account;
+        changed = account.profile !== profile;
+        return changed ? { ...account, profile } : account;
+      });
+      if (!changed) return current;
       writeStored("raid-nexus-accounts", next);
       return next;
     });
@@ -522,7 +526,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const broadcastSiren = (roomId: string) => {
     const room = rooms.find((item) => item.id === roomId);
-    if (!room) return;
+    const canManage = room && (room.hostName === profile.trainerName || authUser?.role === "admin");
+    if (!room || !canManage) return;
+    if (profile.coins < 30) {
+      showToast("金币不足，需要 30 金币广播警报");
+      return;
+    }
 
     const siren: Siren = {
       id: uid(),
@@ -534,6 +543,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
 
     setSirens((prev) => [siren, ...prev].slice(0, 3));
+    setProfileState((current) => ({ ...current, coins: current.coins - 30 }));
+    setBillingRecords((current) => [
+      {
+        id: uid(),
+        username: authUser?.username ?? profile.trainerName,
+        type: "reward",
+        amount: -30,
+        reason: `房间警报：${room.boss}`,
+        balanceAfter: profile.coins - 30,
+        createdAt: Date.now(),
+      },
+      ...current,
+    ]);
     try {
       writeStored("raid-nexus-siren", siren);
     } catch {
@@ -714,35 +736,40 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const receive = (event: StorageEvent) => {
       if (event.key === "raid-nexus-accounts" && event.newValue) {
         try {
-          setAccounts(JSON.parse(event.newValue) as Account[]);
+          const next = JSON.parse(event.newValue) as unknown;
+          if (Array.isArray(next)) setAccounts(next as Account[]);
         } catch {
           /* ignore malformed sync */
         }
       }
       if (event.key === "raid-nexus-frozen" && event.newValue) {
         try {
-          setFrozenAccounts(JSON.parse(event.newValue) as string[]);
+          const next = JSON.parse(event.newValue) as unknown;
+          if (Array.isArray(next)) setFrozenAccounts(next as string[]);
         } catch {
           /* ignore malformed sync */
         }
       }
       if (event.key === "raid-nexus-finance" && event.newValue) {
         try {
-          setFinanceOrders(JSON.parse(event.newValue) as FinanceOrder[]);
+          const next = JSON.parse(event.newValue) as unknown;
+          if (Array.isArray(next)) setFinanceOrders(next as FinanceOrder[]);
         } catch {
           /* ignore malformed sync */
         }
       }
       if (event.key === "raid-nexus-rooms" && event.newValue) {
         try {
-          setRooms(JSON.parse(event.newValue) as Room[]);
+          const next = JSON.parse(event.newValue) as unknown;
+          if (Array.isArray(next)) setRooms(next as Room[]);
         } catch {
           /* ignore malformed sync */
         }
       }
       if (event.key === "raid-nexus-billing" && event.newValue) {
         try {
-          setBillingRecords(JSON.parse(event.newValue) as BillingRecord[]);
+          const next = JSON.parse(event.newValue) as unknown;
+          if (Array.isArray(next)) setBillingRecords(next as BillingRecord[]);
         } catch {
           /* ignore malformed sync */
         }
@@ -884,12 +911,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       setFormation: (roomId, formationId) =>
         setRooms((prev) =>
-          prev.map((room) => (room.id === roomId ? { ...room, formationId } : room)),
+          prev.map((room) =>
+            room.id === roomId &&
+            (room.hostName === profile.trainerName || authUser?.role === "admin")
+              ? { ...room, formationId }
+              : room,
+          ),
         ),
       toggleLottery: (roomId) =>
         setRooms((prev) =>
           prev.map((room) =>
-            room.id === roomId && !room.launched
+            room.id === roomId &&
+            !room.launched &&
+            (room.hostName === profile.trainerName || authUser?.role === "admin")
               ? { ...room, lottery: { ...room.lottery, enabled: !room.lottery.enabled } }
               : room,
           ),
@@ -939,7 +973,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       settleRoom: (roomId, catchType) => {
         const room = rooms.find((item) => item.id === roomId);
-        if (!room || !room.lottery.enabled || room.lottery.entries.length === 0) return;
+        if (
+          !room ||
+          (room.hostName !== profile.trainerName && authUser?.role !== "admin") ||
+          !room.lottery.enabled ||
+          room.lottery.entries.length === 0
+        )
+          return;
         if (catchType === "normal") {
           setRooms((prev) =>
             prev.map((item) =>
@@ -1105,12 +1145,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       launchRoom: (roomId) =>
         setRooms((prev) =>
           prev.map((room) =>
-            room.id === roomId
+            room.id === roomId &&
+            (room.hostName === profile.trainerName || authUser?.role === "admin")
               ? { ...room, launched: true, lottery: { ...room.lottery, enabled: false } }
               : room,
           ),
         ),
-      removeRoom: (roomId) => setRooms((prev) => prev.filter((r) => r.id !== roomId)),
+      removeRoom: (roomId) =>
+        setRooms((prev) =>
+          prev.filter(
+            (room) =>
+              room.id !== roomId ||
+              (room.hostName !== profile.trainerName && authUser?.role !== "admin"),
+          ),
+        ),
       addPost: (p) =>
         setPosts((prev) => [
           {

@@ -180,6 +180,7 @@ function PostCard({ post }: { post: Post }) {
           src={src}
           alt={post.text}
           loading="lazy"
+          decoding="async"
           width={1024}
           height={768}
           className="w-full rounded-2xl border border-border object-cover"

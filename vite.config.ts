@@ -8,5 +8,17 @@ export default defineConfig({
   plugins: [react(), tailwindcss(), tsconfigPaths()],
   build: {
     outDir: "dist",
+    target: "es2020",
+    cssCodeSplit: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+          if (id.includes("@tanstack") || id.includes("react")) return "framework";
+          if (id.includes("lucide-react")) return "icons";
+          return "vendor";
+        },
+      },
+    },
   },
 });

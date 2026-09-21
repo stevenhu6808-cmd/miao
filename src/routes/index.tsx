@@ -45,6 +45,8 @@ function RoomsPage() {
           alt=""
           width={1600}
           height={912}
+          fetchPriority="high"
+          decoding="async"
           className="h-40 w-full object-cover opacity-60"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-transparent" />

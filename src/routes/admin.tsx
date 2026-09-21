@@ -413,7 +413,13 @@ function OrderDialog({
           rel="noreferrer"
           className="mt-3 block overflow-hidden rounded-xl border border-border"
         >
-          <img src={order.proof} alt="转账凭证" className="max-h-80 w-full object-contain" />
+          <img
+            src={order.proof}
+            alt="转账凭证"
+            loading="lazy"
+            decoding="async"
+            className="max-h-80 w-full object-contain"
+          />
         </a>
       ) : (
         <div className="mt-3 rounded-xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
