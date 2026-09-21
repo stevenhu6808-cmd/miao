@@ -1,0 +1,167 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-vip: var(--vip);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --font-display: "Orbitron", "Noto Sans SC", system-ui, sans-serif;
+  --font-sans: "Noto Sans SC", "Noto Sans JP", "Noto Sans KR", system-ui, sans-serif;
+}
+
+:root {
+  --radius: 1rem;
+  --background: oklch(0.16 0.03 265);
+  --foreground: oklch(0.96 0.01 250);
+  --surface: oklch(0.21 0.035 265);
+  --surface-2: oklch(0.25 0.04 268);
+  --card: oklch(0.21 0.035 265);
+  --card-foreground: oklch(0.96 0.01 250);
+  --popover: oklch(0.19 0.035 265);
+  --popover-foreground: oklch(0.96 0.01 250);
+  --primary: oklch(0.78 0.16 195);
+  --primary-foreground: oklch(0.17 0.04 250);
+  --secondary: oklch(0.28 0.05 280);
+  --secondary-foreground: oklch(0.95 0.01 250);
+  --muted: oklch(0.26 0.03 265);
+  --muted-foreground: oklch(0.72 0.03 258);
+  --accent: oklch(0.7 0.24 330);
+  --accent-foreground: oklch(0.15 0.03 265);
+  --vip: oklch(0.83 0.16 88);
+  --destructive: oklch(0.63 0.23 20);
+  --destructive-foreground: oklch(0.98 0.01 250);
+  --border: oklch(0.35 0.04 268 / 55%);
+  --input: oklch(0.3 0.04 268);
+  --ring: oklch(0.78 0.16 195);
+
+  --gradient-hero: linear-gradient(135deg, oklch(0.78 0.16 195 / 0.9), oklch(0.7 0.24 330 / 0.85));
+  --gradient-card: linear-gradient(160deg, oklch(0.26 0.05 268 / 0.9), oklch(0.19 0.035 265 / 0.95));
+  --glow-primary: 0 0 0 1px oklch(0.78 0.16 195 / 0.25), 0 12px 40px -12px oklch(0.78 0.16 195 / 0.55);
+  --glow-accent: 0 0 0 1px oklch(0.7 0.24 330 / 0.3), 0 12px 40px -14px oklch(0.7 0.24 330 / 0.6);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    background-image:
+      radial-gradient(900px 500px at 15% -10%, oklch(0.78 0.16 195 / 0.16), transparent 70%),
+      radial-gradient(700px 480px at 92% 8%, oklch(0.7 0.24 330 / 0.14), transparent 70%);
+    background-attachment: fixed;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@utility glass-card {
+  background-image: var(--gradient-card);
+  border: 1px solid var(--color-border);
+  backdrop-filter: blur(14px);
+  border-radius: var(--radius-2xl);
+}
+
+@utility neon-text {
+  background-image: var(--gradient-hero);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility glow-primary {
+  box-shadow: var(--glow-primary);
+}
+
+@utility glow-accent {
+  box-shadow: var(--glow-accent);
+}
+
+@utility tap-scale {
+  transition: transform 0.15s ease, box-shadow 0.25s ease, background-color 0.2s ease;
+  &:active {
+    transform: scale(0.96);
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 oklch(0.78 0.16 195 / 0.5);
+  }
+  100% {
+    box-shadow: 0 0 0 12px oklch(0.78 0.16 195 / 0);
+  }
+}
+
+@utility pulse-dot {
+  animation: pulse-ring 1.8s ease-out infinite;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@utility rise-in {
+  animation: rise-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes sheen {
+  0% {
+    background-position: -180% 0;
+  }
+  100% {
+    background-position: 180% 0;
+  }
+}
+
+@utility sheen-bar {
+  background-image: linear-gradient(
+    100deg,
+    transparent 20%,
+    oklch(0.9 0.1 195 / 0.35) 50%,
+    transparent 80%
+  );
+  background-size: 200% 100%;
+  animation: sheen 2.6s linear infinite;
+}
