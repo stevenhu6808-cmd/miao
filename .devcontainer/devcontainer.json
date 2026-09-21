@@ -9,5 +9,5 @@
       "visibility": "public"
     }
   },
-  "postStartCommand": "npm run dev -- --host 0.0.0.0 --port 8080 > /tmp/raid-nexus-vite.log 2>&1 &"
+  "postStartCommand": "bash .devcontainer/start.sh"
 }

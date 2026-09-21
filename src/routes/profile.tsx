@@ -5,6 +5,7 @@ import { PageShell } from "@/components/Shell";
 import { Badge, Button, Card, Field, Input, SectionTitle } from "@/components/ui-kit";
 import { useI18n } from "@/lib/i18n";
 import { useStore } from "@/lib/store";
+import { compressImage } from "@/lib/utils";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({
@@ -34,11 +35,14 @@ function ProfilePage() {
   const [financeContact, setFinanceContact] = useState("");
   const [financeProof, setFinanceProof] = useState("");
 
-  const handleProof = (file?: File) => {
+  const handleProof = async (file?: File) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setFinanceProof(String(reader.result ?? ""));
-    reader.readAsDataURL(file);
+    if (!file.type.startsWith("image/")) return;
+    try {
+      setFinanceProof(await compressImage(file, 1000));
+    } catch {
+      setFinanceProof("");
+    }
   };
 
   return (

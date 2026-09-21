@@ -14,7 +14,7 @@ import {
 } from "@/components/ui-kit";
 import { useI18n } from "@/lib/i18n";
 import { useStore, type Post, type PostKind } from "@/lib/store";
-import { cn } from "@/lib/utils";
+import { cn, compressImage } from "@/lib/utils";
 import shinyImg from "@/assets/post-shiny.jpg";
 import shadowImg from "@/assets/post-shadow.jpg";
 
@@ -57,11 +57,14 @@ function WallPage() {
   const [kind, setKind] = useState<PostKind>("shiny");
   const [image, setImage] = useState("");
 
-  const handleImageUpload = (file?: File) => {
+  const handleImageUpload = async (file?: File) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setImage(String(reader.result ?? ""));
-    reader.readAsDataURL(file);
+    if (!file.type.startsWith("image/")) return;
+    try {
+      setImage(await compressImage(file));
+    } catch {
+      setImage("");
+    }
   };
 
   return (
