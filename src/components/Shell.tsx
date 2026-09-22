@@ -116,7 +116,7 @@ export function TopNav() {
           onClose={() => setAuthOpen(false)}
           onAdminLogin={() => {
             setAuthOpen(false);
-            void navigate({ to: "/admin" });
+            void navigate({ to: "/super-admin" });
           }}
         />
       ) : null}
@@ -280,10 +280,9 @@ function AuthDialog({ onClose, onAdminLogin }: { onClose: () => void; onAdminLog
       if (register(username, password, trainerCode)) onClose();
       return;
     }
-    if (login(username, password)) {
-      if (username.trim().toLowerCase() === "admin" && password === "5500123488htk") onAdminLogin();
-      else onClose();
-    }
+    const result = login(username, password);
+    if (result === "admin") onAdminLogin();
+    else if (result === "player") onClose();
   };
 
   return (

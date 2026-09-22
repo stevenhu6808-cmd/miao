@@ -118,6 +118,7 @@ export type AuthUser = {
   role: "player" | "admin";
   trainerCode: string;
 };
+export type LoginResult = false | "player" | "admin";
 
 export type FinanceOrder = {
   id: string;
@@ -368,7 +369,7 @@ type StoreValue = {
   isAuthenticated: boolean;
   isAdmin: boolean;
   register: (username: string, password: string, trainerCode: string) => boolean;
-  login: (username: string, password: string) => boolean;
+  login: (username: string, password: string) => LoginResult;
   logout: () => void;
   rooms: Room[];
   posts: Post[];
@@ -697,14 +698,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return true;
   };
 
-  const login = (username: string, password: string) => {
+  const login = (username: string, password: string): LoginResult => {
     const normalized = username.trim();
     if (normalized.toLowerCase() === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
       const adminUser: AuthUser = { username: ADMIN_USERNAME, role: "admin", trainerCode: "" };
       writeStored("raid-nexus-auth", adminUser);
       setAuthUser(adminUser);
       showToast("管理员登录成功");
-      return true;
+      return "admin";
     }
     const existing = readStoredList<StoredAccount>("raid-nexus-accounts");
     const account = existing.find(
@@ -725,7 +726,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setProfileState(account.profile);
     setAuthUser(nextUser);
     showToast("登录成功");
-    return true;
+    return "player";
   };
 
   const logout = () => {
