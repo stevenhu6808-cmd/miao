@@ -431,6 +431,9 @@ type StoreValue = {
   roomMessages: (roomId: string) => ChatMessage[];
   sendDirectMessage: (username: string, text: string, image?: string) => void;
   directMessages: (username: string) => ChatMessage[];
+  directChatTarget: string | null;
+  openDirectChat: (username: string) => void;
+  closeDirectChat: () => void;
 };
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -512,6 +515,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     readStoredList<ChatMessage>("raid-nexus-chat-messages"),
   );
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
+  const [directChatTarget, setDirectChatTarget] = useState<string | null>(null);
 
   useEffect(() => {
     const raw = localStorage.getItem("raid-nexus-profile");
@@ -1446,6 +1450,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             ((message.from === profile.trainerName && message.to === username) ||
               (message.from === username && message.to === profile.trainerName)),
         ),
+      directChatTarget,
+      openDirectChat: (username) => setDirectChatTarget(username),
+      closeDirectChat: () => setDirectChatTarget(null),
       billingRecords,
       submitDeposit,
       manualAdjustBalance,
@@ -1469,6 +1476,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       friendRequests,
       chatMessages,
       onlineUsers,
+      directChatTarget,
       billingRecords,
       accounts,
       copy,

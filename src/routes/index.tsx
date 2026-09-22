@@ -2,14 +2,17 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import {
   Coins,
+  ArrowLeft,
   Gauge,
   MessageCircle,
   ScanLine,
   Siren,
   Sparkles,
   Target,
+  Timer,
   Trophy,
   Upload,
+  UsersRound,
 } from "lucide-react";
 import { PageShell } from "@/components/Shell";
 import { Badge, Button, Card, Field, Input, Select } from "@/components/ui-kit";
@@ -445,341 +448,402 @@ function RoomCard({ room }: { room: Room }) {
   const [lotteryProof, setLotteryProof] = useState("");
   const [chatDraft, setChatDraft] = useState("");
   const [chatImage, setChatImage] = useState("");
+  const [open, setOpen] = useState(false);
 
-  return (
-    <Card className="space-y-3 overflow-hidden">
-      <div className="flex items-start justify-between gap-3">
-        <div>
+  if (!open) {
+    return (
+      <div className="flex items-center gap-3 rounded-2xl border border-border bg-card/80 px-3 py-2.5 shadow-sm transition hover:border-primary/40">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/15 text-lg">
+          {room.type === "Dragon"
+            ? "🐉"
+            : room.type === "Fire"
+              ? "🔥"
+              : room.type === "Water"
+                ? "💧"
+                : "⚡"}
+        </div>
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
+            <h3 className="truncate text-sm font-bold">{room.boss}</h3>
             <Badge tone={room.mode === "remote" ? "primary" : "accent"}>
-              {t(`rooms.mode.${room.mode}`)}
+              {room.mode === "remote" ? "远程" : "现场"}
             </Badge>
-            {room.launched ? <Badge tone="muted">{t("rooms.launched")}</Badge> : null}
           </div>
-          <h3 className="mt-2 font-display text-xl font-bold">{room.boss}</h3>
-          <p className="text-xs text-muted-foreground">
-            {t("rooms.cp")} {room.cp.toLocaleString()} · {room.type} · {t("rooms.timeLeft")}{" "}
-            {room.minutes} {t("rooms.minutes")}
-          </p>
-        </div>
-        <div className="text-right text-xs text-muted-foreground">
-          <div>{t("rooms.host")}</div>
-          <div className="font-semibold text-foreground">{room.hostName}</div>
-        </div>
-      </div>
-
-      <p className="rounded-xl bg-surface-2/50 px-3 py-2 text-[11px] leading-snug text-muted-foreground">
-        {t(`rooms.mode.${room.mode}.desc`)}
-      </p>
-
-      <div className="grid gap-2 rounded-xl border border-primary/20 bg-primary/5 p-3 sm:grid-cols-[1fr_auto]">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-bold text-primary">
-            <Gauge className="h-3.5 w-3.5" />
-            {t("formation.title")}
-          </div>
-          <Select
-            className="mt-2"
-            value={room.formationId}
-            onChange={(event) => setFormation(room.id, event.target.value)}
-          >
-            {FORMATIONS.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name} · {item.dps} DPS
-              </option>
-            ))}
-          </Select>
-          <p className="mt-1 text-[10px] text-muted-foreground">{formation.description}</p>
-        </div>
-        <div className="grid grid-cols-2 gap-2 text-center sm:min-w-44">
-          <div className="rounded-lg bg-background/50 px-2 py-2">
-            <div className="font-display text-lg font-bold text-primary">{totalDps}</div>
-            <div className="text-[10px] text-muted-foreground">{t("formation.dps")}</div>
-          </div>
-          <div className="rounded-lg bg-background/50 px-2 py-2">
-            <div className="font-display text-lg font-bold text-accent">{estimatedMinutes}m</div>
-            <div className="text-[10px] text-muted-foreground">{t("formation.estimate")}</div>
-          </div>
-        </div>
-      </div>
-
-      {room.mode === "local" ? (
-        canViewPassword ? (
-          <button
-            onClick={() => copy(room.password, t("copied"))}
-            className="tap-scale flex w-full items-center justify-between rounded-xl border border-accent/40 bg-accent/10 px-3 py-2.5 text-left"
-          >
-            <span className="text-[10px] font-bold uppercase tracking-wider text-accent">
-              {t("rooms.password")}
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
+            <span className="font-semibold text-foreground">CP {room.cp.toLocaleString()}</span>
+            <span className="inline-flex items-center gap-1">
+              <Timer className="h-3 w-3" />
+              {room.minutes} 分钟
             </span>
-            <span className="font-display text-sm font-bold text-accent">{room.password}</span>
-          </button>
-        ) : (
-          <div
-            aria-disabled="true"
-            className="flex w-full select-none items-center justify-between rounded-xl border border-border bg-surface-2/50 px-3 py-2.5 text-left"
-          >
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              {t("rooms.password")}
+            <span className="inline-flex items-center gap-1">
+              <UsersRound className="h-3 w-3" />
+              {room.queue.length}/{room.capacity}
             </span>
-            <span className="text-xs font-semibold text-muted-foreground">仅队员可见</span>
-          </div>
-        )
-      ) : (
-        <button
-          onClick={() => copy(room.hostCode, t("copied"))}
-          className="tap-scale flex w-full items-center justify-between rounded-xl border border-primary/40 bg-primary/10 px-3 py-2.5 text-left"
-        >
-          <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
-            {t("rooms.copyHostCode")}
-          </span>
-          <span className="font-display text-sm font-bold text-primary">{room.hostCode}</span>
-        </button>
-      )}
-
-      <div>
-        <div className="mb-2 flex items-center justify-between text-xs">
-          <span className="font-semibold">{t("rooms.queue")}</span>
-          <span className="text-muted-foreground">
-            {t("rooms.slots", { a: room.queue.length, b: room.capacity })}
-          </span>
-        </div>
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
-          <div
-            className="sheen-bar h-full rounded-full bg-primary transition-all duration-500"
-            style={{ width: `${Math.min(100, (room.queue.length / room.capacity) * 100)}%` }}
-          />
-        </div>
-        <ul className="mt-3 space-y-2">
-          {room.queue.map((m, i) => (
-            <li
-              key={m.id}
-              className="flex items-center gap-2 rounded-xl bg-surface-2/40 px-3 py-2 text-xs"
-            >
-              <span className="w-5 font-display text-muted-foreground">{i + 1}</span>
-              <span className="font-semibold">
-                {m.isSelf ? `${m.name} (${t("rooms.you")})` : m.name}
-              </span>
-              {m.vip ? <Badge tone="vip">{t("rooms.vip")}</Badge> : null}
-              <span
-                className={cn(
-                  "ml-auto text-[10px] font-semibold",
-                  m.ready ? "text-primary" : "text-muted-foreground",
-                )}
-              >
-                {m.ready ? "● " + t("rooms.ready") : "○"}
-              </span>
-              <button
-                onClick={() => copy(m.code, t("copied"))}
-                className="tap-scale rounded-lg bg-background/60 px-2 py-1 text-[10px]"
-              >
-                {m.code}
-              </button>
-              {m.isSelf ? (
-                <button
-                  onClick={() => toggleReady(room.id, m.id)}
-                  className="tap-scale rounded-lg bg-primary/20 px-2 py-1 text-[10px] font-semibold text-primary"
-                >
-                  {m.ready ? t("rooms.unready") : t("rooms.ready")}
-                </button>
-              ) : null}
-              {canManage && !m.isSelf ? (
-                <button
-                  onClick={() => kick(room.id, m.id)}
-                  className="tap-scale rounded-lg bg-destructive/20 px-2 py-1 text-[10px] font-semibold text-destructive"
-                >
-                  {t("rooms.kick")}
-                </button>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {inQueue || isHost || isAdmin ? (
-        <div className="space-y-3 rounded-xl border border-primary/25 bg-primary/5 p-3">
-          <div className="flex items-center gap-2 text-xs font-bold text-primary">
-            <MessageCircle className="h-3.5 w-3.5" />
-            队伍临时聊天室
-          </div>
-          <div className="rounded-lg border border-accent/30 bg-accent/5 px-2.5 py-2 text-[10px] text-accent">
-            {CHAT_SAFETY_NOTICE}
-          </div>
-          <div className="max-h-36 space-y-1.5 overflow-auto">
-            {roomMessages(room.id).map((message) => (
-              <div
-                key={message.id}
-                className="rounded-lg bg-surface-2/60 px-2.5 py-1.5 text-[11px]"
-              >
-                <b>{message.from}：</b>
-                {message.text}
-                {message.image ? (
-                  <img src={message.image} alt="聊天凭证" className="mt-1 max-h-24 rounded" />
-                ) : null}
-              </div>
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Input
-              className="min-w-40 flex-1"
-              value={chatDraft}
-              onChange={(event) => setChatDraft(event.target.value)}
-              placeholder="发送组队消息"
-            />
-            <label className="flex cursor-pointer items-center rounded-xl border border-border px-3 text-xs">
-              <Upload className="h-3.5 w-3.5" />
-              <input
-                className="sr-only"
-                type="file"
-                accept="image/*"
-                onChange={async (event) => {
-                  const file = event.target.files?.[0];
-                  if (file) setChatImage(await compressImage(file));
-                }}
-              />
-            </label>
-            <Button
-              size="sm"
-              onClick={() => {
-                if (chatDraft.trim() || chatImage) {
-                  sendRoomMessage(room.id, chatDraft, chatImage);
-                  setChatDraft("");
-                  setChatImage("");
-                }
-              }}
-            >
-              发送
-            </Button>
+            <span className="truncate">房主 {room.hostName}</span>
           </div>
         </div>
-      ) : null}
-
-      <div className="flex flex-wrap gap-2">
-        {inQueue ? (
-          <Button variant="outline" size="sm" onClick={() => leaveRoom(room.id)}>
-            {t("rooms.leave")}
-          </Button>
-        ) : (
-          <Button
-            size="sm"
-            variant={profile.vip ? "vip" : "primary"}
-            disabled={full || room.launched}
-            onClick={() => joinRoom(room.id)}
-          >
-            {full ? t("rooms.full") : profile.vip ? t("rooms.joinVip") : t("rooms.join")}
-          </Button>
-        )}
         <Button
           size="sm"
-          variant="ghost"
-          onClick={() =>
-            copy(room.queue.map((m) => `${m.name}: ${m.code}`).join("\n"), t("copied"))
-          }
+          variant={inQueue ? "outline" : profile.vip ? "vip" : "primary"}
+          disabled={full && !inQueue}
+          onClick={() => {
+            if (!inQueue) joinRoom(room.id);
+            setOpen(true);
+          }}
         >
-          {t("rooms.copyAllCodes")}
+          {inQueue ? "进入房间" : full ? "已满" : "加入队伍"}
         </Button>
-        {canManage ? (
-          <>
-            <Button size="sm" variant="accent" onClick={() => broadcastSiren(room.id)}>
-              <Siren className="h-3.5 w-3.5" />
-              {t("siren.title")} · 5
-            </Button>
-            <Button
-              size="sm"
-              variant="accent"
-              disabled={room.launched}
-              onClick={() => launchRoom(room.id)}
-            >
-              {t("rooms.launch")}
-            </Button>
-            <Button size="sm" variant="danger" onClick={() => removeRoom(room.id)}>
-              {isAdmin && !isHost ? t("rooms.adminClean") : t("rooms.disband")}
-            </Button>
-          </>
-        ) : null}
       </div>
+    );
+  }
 
-      <div className="rounded-xl border border-vip/25 bg-vip/5 p-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-xs font-bold text-vip">
-            <Sparkles className="h-3.5 w-3.5" />
-            {t("lottery.title")}{" "}
-            <Badge tone="vip">
-              {room.lottery.pot} {t("wallet.coins")}
-            </Badge>
-          </div>
+  return (
+    <div className="fixed inset-0 z-[65] overflow-y-auto bg-background/95 p-3 sm:p-6">
+      <Card className="mx-auto max-w-3xl space-y-3 overflow-hidden">
+        <div className="flex items-center justify-between border-b border-border pb-3">
           <button
-            className={cn(
-              "rounded-lg px-2 py-1 text-[10px] font-semibold",
-              room.lottery.enabled ? "bg-vip/20 text-vip" : "bg-surface-2 text-muted-foreground",
-            )}
-            onClick={() => toggleLottery(room.id)}
+            onClick={() => setOpen(false)}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
           >
-            {room.lottery.enabled ? t("lottery.enabled") : t("lottery.enable")}
+            <ArrowLeft className="h-4 w-4" />
+            返回大厅
           </button>
+          <span className="font-display text-xs font-bold text-primary">战术房间</span>
+          <span className="w-16" />
         </div>
-        <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
-          <span>{t("lottery.hint")}</span>
-          {room.lottery.enabled && !room.lottery.entries.includes(profile.trainerName) ? (
-            <Button size="sm" variant="vip" onClick={() => joinLottery(room.id)}>
-              {t("lottery.join")}
-            </Button>
-          ) : null}
-          {room.lottery.enabled && room.lottery.entries.includes(profile.trainerName) ? (
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-vip/40 px-2 py-1.5 text-[10px] font-semibold text-vip">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <Badge tone={room.mode === "remote" ? "primary" : "accent"}>
+                {t(`rooms.mode.${room.mode}`)}
+              </Badge>
+              {room.launched ? <Badge tone="muted">{t("rooms.launched")}</Badge> : null}
+            </div>
+            <h3 className="mt-2 font-display text-xl font-bold">{room.boss}</h3>
+            <p className="text-xs text-muted-foreground">
+              {t("rooms.cp")} {room.cp.toLocaleString()} · {room.type} · {t("rooms.timeLeft")}{" "}
+              {room.minutes} {t("rooms.minutes")}
+            </p>
+          </div>
+          <div className="text-right text-xs text-muted-foreground">
+            <div>{t("rooms.host")}</div>
+            <div className="font-semibold text-foreground">{room.hostName}</div>
+          </div>
+        </div>
+
+        <p className="rounded-xl bg-surface-2/50 px-3 py-2 text-[11px] leading-snug text-muted-foreground">
+          {t(`rooms.mode.${room.mode}.desc`)}
+        </p>
+
+        <div className="grid gap-2 rounded-xl border border-primary/20 bg-primary/5 p-3 sm:grid-cols-[1fr_auto]">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-bold text-primary">
+              <Gauge className="h-3.5 w-3.5" />
+              {t("formation.title")}
+            </div>
+            <Select
+              className="mt-2"
+              value={room.formationId}
+              onChange={(event) => setFormation(room.id, event.target.value)}
+            >
+              {FORMATIONS.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} · {item.dps} DPS
+                </option>
+              ))}
+            </Select>
+            <p className="mt-1 text-[10px] text-muted-foreground">{formation.description}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-center sm:min-w-44">
+            <div className="rounded-lg bg-background/50 px-2 py-2">
+              <div className="font-display text-lg font-bold text-primary">{totalDps}</div>
+              <div className="text-[10px] text-muted-foreground">{t("formation.dps")}</div>
+            </div>
+            <div className="rounded-lg bg-background/50 px-2 py-2">
+              <div className="font-display text-lg font-bold text-accent">{estimatedMinutes}m</div>
+              <div className="text-[10px] text-muted-foreground">{t("formation.estimate")}</div>
+            </div>
+          </div>
+        </div>
+
+        {room.mode === "local" ? (
+          canViewPassword ? (
+            <button
+              onClick={() => copy(room.password, t("copied"))}
+              className="tap-scale flex w-full items-center justify-between rounded-xl border border-accent/40 bg-accent/10 px-3 py-2.5 text-left"
+            >
+              <span className="text-[10px] font-bold uppercase tracking-wider text-accent">
+                {t("rooms.password")}
+              </span>
+              <span className="font-display text-sm font-bold text-accent">{room.password}</span>
+            </button>
+          ) : (
+            <div
+              aria-disabled="true"
+              className="flex w-full select-none items-center justify-between rounded-xl border border-border bg-surface-2/50 px-3 py-2.5 text-left"
+            >
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                {t("rooms.password")}
+              </span>
+              <span className="text-xs font-semibold text-muted-foreground">仅队员可见</span>
+            </div>
+          )
+        ) : (
+          <button
+            onClick={() => copy(room.hostCode, t("copied"))}
+            className="tap-scale flex w-full items-center justify-between rounded-xl border border-primary/40 bg-primary/10 px-3 py-2.5 text-left"
+          >
+            <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
+              {t("rooms.copyHostCode")}
+            </span>
+            <span className="font-display text-sm font-bold text-primary">{room.hostCode}</span>
+          </button>
+        )}
+
+        <div>
+          <div className="mb-2 flex items-center justify-between text-xs">
+            <span className="font-semibold">{t("rooms.queue")}</span>
+            <span className="text-muted-foreground">
+              {t("rooms.slots", { a: room.queue.length, b: room.capacity })}
+            </span>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
+            <div
+              className="sheen-bar h-full rounded-full bg-primary transition-all duration-500"
+              style={{ width: `${Math.min(100, (room.queue.length / room.capacity) * 100)}%` }}
+            />
+          </div>
+          <ul className="mt-3 space-y-2">
+            {room.queue.map((m, i) => (
+              <li
+                key={m.id}
+                className="flex items-center gap-2 rounded-xl bg-surface-2/40 px-3 py-2 text-xs"
+              >
+                <span className="w-5 font-display text-muted-foreground">{i + 1}</span>
+                <span className="font-semibold">
+                  {m.isSelf ? `${m.name} (${t("rooms.you")})` : m.name}
+                </span>
+                {m.vip ? <Badge tone="vip">{t("rooms.vip")}</Badge> : null}
+                <span
+                  className={cn(
+                    "ml-auto text-[10px] font-semibold",
+                    m.ready ? "text-primary" : "text-muted-foreground",
+                  )}
+                >
+                  {m.ready ? "● " + t("rooms.ready") : "○"}
+                </span>
+                <button
+                  onClick={() => copy(m.code, t("copied"))}
+                  className="tap-scale rounded-lg bg-background/60 px-2 py-1 text-[10px]"
+                >
+                  {m.code}
+                </button>
+                {m.isSelf ? (
+                  <button
+                    onClick={() => toggleReady(room.id, m.id)}
+                    className="tap-scale rounded-lg bg-primary/20 px-2 py-1 text-[10px] font-semibold text-primary"
+                  >
+                    {m.ready ? t("rooms.unready") : t("rooms.ready")}
+                  </button>
+                ) : null}
+                {canManage && !m.isSelf ? (
+                  <button
+                    onClick={() => kick(room.id, m.id)}
+                    className="tap-scale rounded-lg bg-destructive/20 px-2 py-1 text-[10px] font-semibold text-destructive"
+                  >
+                    {t("rooms.kick")}
+                  </button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {inQueue || isHost || isAdmin ? (
+          <div className="space-y-3 rounded-xl border border-primary/25 bg-primary/5 p-3">
+            <div className="flex items-center gap-2 text-xs font-bold text-primary">
+              <MessageCircle className="h-3.5 w-3.5" />
+              队伍临时聊天室
+            </div>
+            <div className="rounded-lg border border-accent/30 bg-accent/5 px-2.5 py-2 text-[10px] text-accent">
+              {CHAT_SAFETY_NOTICE}
+            </div>
+            <div className="max-h-36 space-y-1.5 overflow-auto">
+              {roomMessages(room.id).map((message) => (
+                <div
+                  key={message.id}
+                  className="rounded-lg bg-surface-2/60 px-2.5 py-1.5 text-[11px]"
+                >
+                  <b>{message.from}：</b>
+                  {message.text}
+                  {message.image ? (
+                    <img src={message.image} alt="聊天凭证" className="mt-1 max-h-24 rounded" />
+                  ) : null}
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Input
+                className="min-w-40 flex-1"
+                value={chatDraft}
+                onChange={(event) => setChatDraft(event.target.value)}
+                placeholder="发送组队消息"
+              />
+              <label className="flex cursor-pointer items-center rounded-xl border border-border px-3 text-xs">
                 <Upload className="h-3.5 w-3.5" />
-                {lotteryProof ? "证明已读取" : "上传闪光截图"}
                 <input
                   className="sr-only"
                   type="file"
                   accept="image/*"
                   onChange={async (event) => {
                     const file = event.target.files?.[0];
-                    if (!file) return;
-                    setLotteryProof(await compressImage(file));
+                    if (file) setChatImage(await compressImage(file));
                   }}
                 />
               </label>
               <Button
                 size="sm"
-                variant="vip"
-                disabled={!lotteryProof}
                 onClick={() => {
-                  submitLotteryProof(room.id, lotteryProof);
-                  setLotteryProof("");
+                  if (chatDraft.trim() || chatImage) {
+                    sendRoomMessage(room.id, chatDraft, chatImage);
+                    setChatDraft("");
+                    setChatImage("");
+                  }
                 }}
               >
-                提交证明
+                发送
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="flex flex-wrap gap-2">
+          {inQueue ? (
+            <Button variant="outline" size="sm" onClick={() => leaveRoom(room.id)}>
+              {t("rooms.leave")}
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant={profile.vip ? "vip" : "primary"}
+              disabled={full || room.launched}
+              onClick={() => joinRoom(room.id)}
+            >
+              {full ? t("rooms.full") : profile.vip ? t("rooms.joinVip") : t("rooms.join")}
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              copy(room.queue.map((m) => `${m.name}: ${m.code}`).join("\n"), t("copied"))
+            }
+          >
+            {t("rooms.copyAllCodes")}
+          </Button>
+          {canManage ? (
+            <>
+              <Button size="sm" variant="accent" onClick={() => broadcastSiren(room.id)}>
+                <Siren className="h-3.5 w-3.5" />
+                {t("siren.title")} · 5
+              </Button>
+              <Button
+                size="sm"
+                variant="accent"
+                disabled={room.launched}
+                onClick={() => launchRoom(room.id)}
+              >
+                {t("rooms.launch")}
+              </Button>
+              <Button size="sm" variant="danger" onClick={() => removeRoom(room.id)}>
+                {isAdmin && !isHost ? t("rooms.adminClean") : t("rooms.disband")}
+              </Button>
+            </>
+          ) : null}
+        </div>
+
+        <div className="rounded-xl border border-vip/25 bg-vip/5 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-xs font-bold text-vip">
+              <Sparkles className="h-3.5 w-3.5" />
+              {t("lottery.title")}{" "}
+              <Badge tone="vip">
+                {room.lottery.pot} {t("wallet.coins")}
+              </Badge>
+            </div>
+            <button
+              className={cn(
+                "rounded-lg px-2 py-1 text-[10px] font-semibold",
+                room.lottery.enabled ? "bg-vip/20 text-vip" : "bg-surface-2 text-muted-foreground",
+              )}
+              onClick={() => toggleLottery(room.id)}
+            >
+              {room.lottery.enabled ? t("lottery.enabled") : t("lottery.enable")}
+            </button>
+          </div>
+          <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+            <span>{t("lottery.hint")}</span>
+            {room.lottery.enabled && !room.lottery.entries.includes(profile.trainerName) ? (
+              <Button size="sm" variant="vip" onClick={() => joinLottery(room.id)}>
+                {t("lottery.join")}
+              </Button>
+            ) : null}
+            {room.lottery.enabled && room.lottery.entries.includes(profile.trainerName) ? (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-vip/40 px-2 py-1.5 text-[10px] font-semibold text-vip">
+                  <Upload className="h-3.5 w-3.5" />
+                  {lotteryProof ? "证明已读取" : "上传闪光截图"}
+                  <input
+                    className="sr-only"
+                    type="file"
+                    accept="image/*"
+                    onChange={async (event) => {
+                      const file = event.target.files?.[0];
+                      if (!file) return;
+                      setLotteryProof(await compressImage(file));
+                    }}
+                  />
+                </label>
+                <Button
+                  size="sm"
+                  variant="vip"
+                  disabled={!lotteryProof}
+                  onClick={() => {
+                    submitLotteryProof(room.id, lotteryProof);
+                    setLotteryProof("");
+                  }}
+                >
+                  提交证明
+                </Button>
+              </div>
+            ) : null}
+          </div>
+          {room.lottery.winner ? (
+            <div className="mt-2 text-[11px] font-semibold text-vip">
+              {t("lottery.winner")}：{room.lottery.winner}
+            </div>
+          ) : null}
+          {canManage && room.lottery.enabled && room.lottery.pot > 0 ? (
+            <div className="mt-2 flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const confirmed = window.confirm(
+                    "请先核对接单人的游戏角色名和闪光/100IV截图凭证，确认无误后再发放彩池金币。",
+                  );
+                  if (confirmed) settleRoom(room.id, "shiny");
+                }}
+              >
+                {t("lottery.shinySettle")}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => settleRoom(room.id, "normal")}>
+                {t("lottery.normalDrop")}
               </Button>
             </div>
           ) : null}
         </div>
-        {room.lottery.winner ? (
-          <div className="mt-2 text-[11px] font-semibold text-vip">
-            {t("lottery.winner")}：{room.lottery.winner}
-          </div>
-        ) : null}
-        {canManage && room.lottery.enabled && room.lottery.pot > 0 ? (
-          <div className="mt-2 flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                const confirmed = window.confirm(
-                  "请先核对接单人的游戏角色名和闪光/100IV截图凭证，确认无误后再发放彩池金币。",
-                );
-                if (confirmed) settleRoom(room.id, "shiny");
-              }}
-            >
-              {t("lottery.shinySettle")}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => settleRoom(room.id, "normal")}>
-              {t("lottery.normalDrop")}
-            </Button>
-          </div>
-        ) : null}
-      </div>
-    </Card>
+      </Card>
+    </div>
   );
 }

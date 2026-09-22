@@ -9,16 +9,18 @@ import {
   Sparkles,
   Calculator,
   IdCard,
+  ImagePlus,
   MessageCircle,
   Target,
   Users,
+  X,
   Zap,
 } from "lucide-react";
 import { useState } from "react";
 import { LANGS, useI18n } from "@/lib/i18n";
 import { useStore } from "@/lib/store";
-import { Badge, Button, Input } from "@/components/ui-kit";
-import { cn } from "@/lib/utils";
+import { Badge, Button, Input, Textarea } from "@/components/ui-kit";
+import { cn, compressImage } from "@/lib/utils";
 
 const NAV = [
   { to: "/", key: "nav.rooms", Icon: Swords },
@@ -31,7 +33,7 @@ const NAV = [
 
 export function TopNav() {
   const { t } = useI18n();
-  const { profile, authUser, logout, sirens } = useStore();
+  const { profile, authUser, logout, sirens, directChatTarget } = useStore();
   const activeSiren = sirens[0];
   const [authOpen, setAuthOpen] = useState(false);
   const navigate = useNavigate();
@@ -118,7 +120,113 @@ export function TopNav() {
           }}
         />
       ) : null}
+      {directChatTarget ? <DirectChatDrawer /> : null}
     </>
+  );
+}
+
+function DirectChatDrawer() {
+  const {
+    profile,
+    directChatTarget,
+    closeDirectChat,
+    directMessages,
+    sendDirectMessage,
+    onlineUsers,
+    showToast,
+  } = useStore();
+  const [draft, setDraft] = useState("");
+  const [image, setImage] = useState("");
+  const messages = directChatTarget ? directMessages(directChatTarget) : [];
+
+  if (!directChatTarget) return null;
+
+  return (
+    <div className="fixed inset-0 z-[75] bg-background/70 sm:p-4" onClick={closeDirectChat}>
+      <aside
+        className="absolute inset-x-0 bottom-0 flex h-[min(78vh,640px)] flex-col border-t border-primary/30 bg-popover shadow-2xl sm:inset-y-4 sm:right-4 sm:left-auto sm:h-auto sm:w-[min(420px,calc(100vw-2rem))] sm:rounded-2xl sm:border"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+          <MessageCircle className="h-4 w-4 text-primary" />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-bold">与 {directChatTarget} 私聊</div>
+            <div className="text-[10px] text-muted-foreground">
+              {onlineUsers.includes(directChatTarget) ? "在线" : "离线"}
+            </div>
+          </div>
+          <button
+            aria-label="关闭私聊"
+            onClick={closeDirectChat}
+            className="rounded-lg p-2 text-muted-foreground hover:bg-surface-2"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="border-b border-accent/20 bg-accent/5 px-4 py-2 text-[10px] text-accent">
+          平台仅供组队交流，严禁私下交易。
+        </div>
+        <div className="min-h-0 flex-1 space-y-2 overflow-auto p-4">
+          {messages.length === 0 ? (
+            <div className="py-12 text-center text-xs text-muted-foreground">
+              开始一段组队交流吧
+            </div>
+          ) : (
+            messages.map((message) => (
+              <div
+                key={message.id}
+                className={cn(
+                  "max-w-[85%] rounded-xl px-3 py-2 text-xs",
+                  message.from === profile.trainerName
+                    ? "ml-auto bg-primary/15"
+                    : "bg-surface-2/60",
+                )}
+              >
+                {message.text}
+                {message.image ? (
+                  <img src={message.image} alt="聊天凭证" className="mt-2 max-h-48 rounded-lg" />
+                ) : null}
+              </div>
+            ))
+          )}
+        </div>
+        <div className="space-y-2 border-t border-border p-3">
+          <Textarea
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder="发送组队消息"
+          />
+          <div className="flex items-center gap-2">
+            <label className="flex h-9 cursor-pointer items-center rounded-xl border border-border px-3 text-xs">
+              <ImagePlus className="h-4 w-4" />
+              <input
+                className="sr-only"
+                type="file"
+                accept="image/*"
+                onChange={async (event) => {
+                  const file = event.target.files?.[0];
+                  if (file) setImage(await compressImage(file));
+                }}
+              />
+            </label>
+            <Button
+              className="flex-1"
+              onClick={() => {
+                if (!draft.trim() && !image) {
+                  showToast("请输入消息或选择图片");
+                  return;
+                }
+                sendDirectMessage(directChatTarget, draft, image);
+                setDraft("");
+                setImage("");
+              }}
+            >
+              发送
+            </Button>
+          </div>
+        </div>
+      </aside>
+    </div>
   );
 }
 
