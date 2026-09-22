@@ -11,6 +11,7 @@ import {
   IdCard,
   ImagePlus,
   MessageCircle,
+  Shield,
   X,
   Zap,
 } from "lucide-react";
@@ -104,6 +105,15 @@ export function TopNav() {
                 {t(item.key)}
               </Link>
             ))}
+            {authUser?.username === "admin" ? (
+              <Link
+                to="/super-admin"
+                className="tap-scale flex shrink-0 items-center gap-1.5 rounded-xl border border-accent/50 bg-accent/10 px-3.5 py-2 text-xs font-semibold text-accent"
+              >
+                <Shield className="h-3.5 w-3.5" />
+                GM 控制台
+              </Link>
+            ) : null}
           </div>
         </nav>
       </header>

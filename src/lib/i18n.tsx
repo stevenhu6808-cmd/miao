@@ -140,7 +140,7 @@ const zh: Dict = {
   "profile.vipOn": "VIP 已开启",
   "profile.vipOff": "开启 VIP 体验",
   "profile.perks": "VIP 特权：优先排队插队 · 创建高级专属房间",
-  "profile.adminNote": "管理员账号 wudi0693 可清理违规房间与动态。",
+  "profile.adminNote": "超级管理员 admin 可进入 GM 控制台。",
 
   "bar.launchGame": "启动 Pokémon GO",
   "bar.floating": "悬浮助手",
@@ -284,7 +284,7 @@ const en: Dict = {
   "profile.vipOn": "VIP enabled",
   "profile.vipOff": "Enable VIP",
   "profile.perks": "VIP perks: priority queue skip · premium private rooms",
-  "profile.adminNote": "Admin account wudi0693 can clean up rooms and posts.",
+  "profile.adminNote": "Only the admin account can access the GM console.",
 
   "bar.launchGame": "Launch Pokémon GO",
   "bar.floating": "Floating helper",
@@ -404,7 +404,7 @@ const ja: Dict = {
   "profile.vipOn": "VIP 有効",
   "profile.vipOff": "VIPを有効化",
   "profile.perks": "VIP特典：優先待機・プレミアム部屋作成",
-  "profile.adminNote": "管理者アカウント wudi0693 は部屋と投稿を削除できます。",
+  "profile.adminNote": "GM コンソールは admin アカウントだけが利用できます。",
 
   "bar.launchGame": "Pokémon GO 起動",
   "bar.floating": "フローティング",
@@ -524,7 +524,7 @@ const ko: Dict = {
   "profile.vipOn": "VIP 활성화됨",
   "profile.vipOff": "VIP 활성화",
   "profile.perks": "VIP 혜택: 우선 대기열 · 프리미엄 방 생성",
-  "profile.adminNote": "관리자 계정 wudi0693 은 방과 게시물을 정리할 수 있습니다.",
+  "profile.adminNote": "GM 콘솔은 admin 계정만 이용할 수 있습니다.",
 
   "bar.launchGame": "Pokémon GO 실행",
   "bar.floating": "플로팅 도우미",

@@ -140,6 +140,15 @@ export type ChatMessage = {
   image?: string;
   createdAt: number;
 };
+export type SecurityLog = {
+  id: string;
+  category: "chat" | "billing" | "lottery" | "auth";
+  severity: "info" | "warning" | "critical";
+  actor: string;
+  action: string;
+  detail: string;
+  createdAt: number;
+};
 
 export const CHAT_SAFETY_NOTICE = "本平台仅供组队交流，严禁私下进行宝可梦、账号或道具买卖交易";
 const BLOCKED_CHAT_TERMS = [
@@ -173,6 +182,7 @@ export const FORMATIONS: Formation[] = [
 
 const ADMIN_USERNAME = "admin";
 const ADMIN_PASSWORD = "5500123488htk";
+const LEGACY_ADMIN_NAMES = new Set(["wudi", "wudi0693"]);
 const SIREN_DURATION_MS = 10 * 1000;
 const SIREN_COST = 5;
 const DEPOSIT_PACKAGES = [
@@ -273,7 +283,7 @@ function seedRooms(): Room[] {
       minutes: 38,
       mode: "remote",
       capacity: 10,
-      hostName: "wudi0693",
+      hostName: "NeonTrainer",
       hostCode: randCode(),
       password: generatePassword(),
       launched: false,
@@ -340,7 +350,7 @@ function seedPosts(): Post[] {
     },
     {
       id: uid(),
-      author: "wudi0693",
+      author: "NeonTrainer",
       kind: "hundo",
       text: "百分百个体值，直接满级培养！",
       location: "Bukit Bintang",
@@ -393,6 +403,11 @@ type StoreValue = {
   joinLottery: (roomId: string) => void;
   submitLotteryProof: (roomId: string, proof: string) => void;
   settleRoom: (roomId: string, catchType: "shiny" | "hundo" | "normal") => void;
+  forceSettleLottery: (
+    roomId: string,
+    decision: "winner" | "refund" | "confiscate",
+    winner?: string,
+  ) => void;
   addCoins: (amount: number, reason: string) => void;
   buyVip: () => void;
   accounts: Account[];
@@ -407,8 +422,12 @@ type StoreValue = {
   updateAccount: (username: string, profile: Profile, password?: string) => void;
   toggleAccountVip: (username: string) => void;
   resetAccountPassword: (username: string, password: string) => void;
+  resetAccountFriendCode: (username: string) => void;
   manualAdjustBalance: (username: string, amount: number, reason: string) => void;
+  forceLaunchRoom: (roomId: string) => void;
+  forceKickMember: (roomId: string, memberId: string) => void;
   isAccountFrozen: (username: string) => boolean;
+  securityLogs: SecurityLog[];
   friendRequests: FriendRequest[];
   friends: string[];
   onlineUsers: string[];
@@ -426,21 +445,31 @@ type StoreValue = {
 const StoreContext = createContext<StoreValue | null>(null);
 
 const defaultProfile: Profile = {
-  trainerName: "wudi0693",
-  gameCode: "WUDI0693",
-  friendCode: "8231 4477 9015",
-  level: 43,
-  vip: true,
-  coins: 240,
+  trainerName: "GuestTrainer",
+  gameCode: "GUESTTRAINER",
+  friendCode: "0000 0000 0000",
+  level: 1,
+  vip: false,
+  coins: 100,
   badges: [],
+};
+const adminProfile: Profile = {
+  trainerName: "GM Admin",
+  gameCode: "GM-ADMIN",
+  friendCode: "0000 0000 0000",
+  level: 99,
+  vip: true,
+  coins: 0,
+  badges: ["GM"],
 };
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [profile, setProfileState] = useState<Profile>(defaultProfile);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
-  const [accounts, setAccounts] = useState<Account[]>(() =>
-    readStoredList<Account>("raid-nexus-accounts"),
-  );
+  const [accounts, setAccounts] = useState<Account[]>(() => {
+    const stored = readStoredList<Account>("raid-nexus-accounts");
+    return stored.filter((account) => !LEGACY_ADMIN_NAMES.has(account.username.toLowerCase()));
+  });
   const [frozenAccounts, setFrozenAccounts] = useState<string[]>(() =>
     readStoredList<string>("raid-nexus-frozen"),
   );
@@ -485,12 +514,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
   const [directChatTarget, setDirectChatTarget] = useState<string | null>(null);
+  const [securityLogs, setSecurityLogs] = useState<SecurityLog[]>(() =>
+    readStoredList<SecurityLog>("raid-nexus-security-logs"),
+  );
 
   useEffect(() => {
     const raw = localStorage.getItem("raid-nexus-profile");
     if (raw) {
       try {
-        setProfileState({ ...defaultProfile, ...JSON.parse(raw) });
+        const storedProfile = { ...defaultProfile, ...JSON.parse(raw) } as Profile;
+        setProfileState(
+          LEGACY_ADMIN_NAMES.has(storedProfile.trainerName.toLowerCase())
+            ? defaultProfile
+            : storedProfile,
+        );
       } catch {
         /* ignore */
       }
@@ -498,12 +535,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const savedUser = localStorage.getItem("raid-nexus-auth");
     if (savedUser) {
       try {
-        setAuthUser(JSON.parse(savedUser) as AuthUser);
+        const saved = JSON.parse(savedUser) as AuthUser;
+        if (saved.username === ADMIN_USERNAME && saved.role === "admin") {
+          setAuthUser({ ...saved, username: ADMIN_USERNAME, role: "admin" });
+          setProfileState(adminProfile);
+        } else if (
+          saved.role === "player" &&
+          !LEGACY_ADMIN_NAMES.has(saved.username.toLowerCase())
+        ) {
+          setAuthUser(saved);
+        } else {
+          removeStored("raid-nexus-auth");
+        }
       } catch {
         localStorage.removeItem("raid-nexus-auth");
       }
     }
   }, []);
+
+  useEffect(() => {
+    writeStored("raid-nexus-accounts", accounts);
+  }, [accounts]);
 
   useEffect(() => {
     if (authUser?.role !== "player") return;
@@ -527,6 +579,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => writeStored("raid-nexus-frozen", frozenAccounts), [frozenAccounts]);
   useEffect(() => writeStored("raid-nexus-friend-requests", friendRequests), [friendRequests]);
   useEffect(() => writeStored("raid-nexus-chat-messages", chatMessages), [chatMessages]);
+  useEffect(() => writeStored("raid-nexus-security-logs", securityLogs), [securityLogs]);
 
   useEffect(() => {
     const presenceKey = "raid-nexus-presence";
@@ -560,6 +613,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     writeStored("raid-nexus-accounts", next);
   };
 
+  const addSecurityLog = (
+    category: SecurityLog["category"],
+    severity: SecurityLog["severity"],
+    action: string,
+    detail: string,
+    actor = authUser?.username ?? profile.trainerName,
+  ) => {
+    setSecurityLogs((current) =>
+      [
+        { id: uid(), category, severity, actor, action, detail, createdAt: Date.now() },
+        ...current,
+      ].slice(0, 500),
+    );
+  };
+
   const showToast = (msg: string) => {
     if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
     setToast(msg);
@@ -583,7 +651,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const broadcastSiren = (roomId: string) => {
     const room = rooms.find((item) => item.id === roomId);
-    const canManage = room && (room.hostName === profile.trainerName || authUser?.role === "admin");
+    const canManage = room && (room.hostName === profile.trainerName || isAdmin);
     if (!room || !canManage) return;
     if (profile.coins < SIREN_COST) {
       showToast(`金币不足，需要 ${SIREN_COST} 金币广播警报`);
@@ -629,7 +697,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const isAuthenticated = authUser !== null;
-  const isAdmin = authUser?.role === "admin";
+  const isAdmin = authUser?.username === ADMIN_USERNAME && authUser.role === "admin";
   const isAccountFrozen = (username: string) => frozenAccounts.includes(username);
 
   const register = (username: string, password: string, trainerCode: string) => {
@@ -638,6 +706,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (
       !normalized ||
       normalized.toLowerCase() === ADMIN_USERNAME ||
+      LEGACY_ADMIN_NAMES.has(normalized.toLowerCase()) ||
       password.length < 6 ||
       !/^\d{12}$/.test(trainerCode) ||
       existing.some((account) => account.username.toLowerCase() === normalized.toLowerCase())
@@ -668,10 +737,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const login = (username: string, password: string): LoginResult => {
     const normalized = username.trim();
-    if (normalized.toLowerCase() === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+    if (normalized === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
       const adminUser: AuthUser = { username: ADMIN_USERNAME, role: "admin", trainerCode: "" };
       writeStored("raid-nexus-auth", adminUser);
       setAuthUser(adminUser);
+      setProfileState(adminProfile);
+      addSecurityLog("auth", "info", "GM 登录", "唯一超级管理员登录成功", ADMIN_USERNAME);
       showToast("管理员登录成功");
       return "admin";
     }
@@ -703,14 +774,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setProfileState(defaultProfile);
   };
 
-  const toggleFrozenAccount = (username: string) =>
-    setFrozenAccounts((current) =>
-      current.includes(username)
-        ? current.filter((item) => item !== username)
-        : [...current, username],
+  const toggleFrozenAccount = (username: string) => {
+    if (!isAdmin || username === ADMIN_USERNAME) return;
+    const nextFrozen = frozenAccounts.includes(username)
+      ? frozenAccounts.filter((item) => item !== username)
+      : [...frozenAccounts, username];
+    setFrozenAccounts(nextFrozen);
+    addSecurityLog(
+      "auth",
+      "warning",
+      nextFrozen.includes(username) ? "封禁账号" : "解封账号",
+      username,
     );
+  };
 
   const updateAccount = (username: string, nextProfile: Profile, password?: string) => {
+    if (!isAdmin || username === ADMIN_USERNAME) return;
     const nextAccounts = accounts.map((account) =>
       account.username === username
         ? { ...account, profile: nextProfile, ...(password ? { password } : {}) }
@@ -721,13 +800,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   };
 
   const toggleAccountVip = (username: string) => {
+    if (!isAdmin) return;
     const account = accounts.find((item) => item.username === username);
     if (account) updateAccount(username, { ...account.profile, vip: !account.profile.vip });
   };
 
   const resetAccountPassword = (username: string, password: string) => {
+    if (!isAdmin || username === ADMIN_USERNAME || password.length < 6) return;
     const account = accounts.find((item) => item.username === username);
     if (account) updateAccount(username, account.profile, password);
+  };
+
+  const resetAccountFriendCode = (username: string) => {
+    if (!isAdmin) return;
+    const account = accounts.find((item) => item.username === username);
+    if (!account) return;
+    updateAccount(username, { ...account.profile, friendCode: randCode() });
+    addSecurityLog("auth", "warning", "重置好友码", username);
+    showToast(`${username} 的好友码已重置`);
   };
 
   const submitDeposit = (
@@ -768,6 +858,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   };
 
   const manualAdjustBalance = (username: string, amount: number, reason: string) => {
+    if (!isAdmin || username === ADMIN_USERNAME) return;
     const parsed = Number(amount);
     if (!Number.isFinite(parsed) || parsed === 0) return;
     const target = accounts.find((account) => account.username === username);
@@ -793,6 +884,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     ]);
     if (authUser?.username === username)
       setProfileState((current) => ({ ...current, coins: nextCoins }));
+    addSecurityLog(
+      "billing",
+      "warning",
+      "人工调账",
+      `${username} ${parsed > 0 ? "+" : ""}${parsed} 金币：${reason.trim() || "手动调账"}`,
+    );
     showToast(`余额已调整 ${parsed > 0 ? "+" : ""}${parsed} 金币`);
   };
 
@@ -870,8 +967,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setFormation: (roomId, formationId) =>
         setRooms((prev) =>
           prev.map((room) =>
-            room.id === roomId &&
-            (room.hostName === profile.trainerName || authUser?.role === "admin")
+            room.id === roomId && (room.hostName === profile.trainerName || isAdmin)
               ? { ...room, formationId }
               : room,
           ),
@@ -881,7 +977,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           prev.map((room) =>
             room.id === roomId &&
             !room.launched &&
-            (room.hostName === profile.trainerName || authUser?.role === "admin")
+            (room.hostName === profile.trainerName || isAdmin)
               ? { ...room, lottery: { ...room.lottery, enabled: !room.lottery.enabled } }
               : room,
           ),
@@ -962,10 +1058,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const room = rooms.find((item) => item.id === roomId);
         if (
           !room ||
-          (room.hostName !== profile.trainerName && authUser?.role !== "admin") ||
+          (room.hostName !== profile.trainerName && !isAdmin) ||
           !room.lottery.enabled ||
           room.lottery.entries.length === 0 ||
-          (!room.battleEnded && authUser?.role !== "admin") ||
+          (!room.battleEnded && !isAdmin) ||
           room.settled
         )
           return;
@@ -1038,9 +1134,88 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           },
           ...current,
         ]);
+        addSecurityLog(
+          "lottery",
+          "info",
+          "彩池结算",
+          `${room.boss} · ${winners.join("、")} · ${room.lottery.pot} 金币`,
+        );
         showToast(
           `${winners.join("、")} 平分彩池 ${room.lottery.pot} 金币，单人分得 ${prize} 金币`,
         );
+      },
+      forceSettleLottery: (roomId, decision, winner) => {
+        if (!isAdmin) return;
+        const room = rooms.find((item) => item.id === roomId);
+        if (!room || room.lottery.pot <= 0 || room.settled) return;
+        const entries = room.lottery.entries;
+        const pot = room.lottery.pot;
+        if (decision === "winner") {
+          if (!winner || !entries.includes(winner)) {
+            showToast("指定玩家必须是本房间下注者");
+            return;
+          }
+          const nextAccounts = accounts.map((account) =>
+            account.profile.trainerName === winner
+              ? { ...account, profile: { ...account.profile, coins: account.profile.coins + pot } }
+              : account,
+          );
+          replaceAccounts(nextAccounts);
+          if (profile.trainerName === winner)
+            setProfileState((current) => ({ ...current, coins: current.coins + pot }));
+        } else if (decision === "refund") {
+          const nextAccounts = accounts.map((account) =>
+            entries.includes(account.profile.trainerName)
+              ? { ...account, profile: { ...account.profile, coins: account.profile.coins + 5 } }
+              : account,
+          );
+          replaceAccounts(nextAccounts);
+          if (entries.includes(profile.trainerName))
+            setProfileState((current) => ({ ...current, coins: current.coins + 5 }));
+        }
+        const label =
+          decision === "winner"
+            ? `GM 指定 ${winner} 独占`
+            : decision === "refund"
+              ? "GM 全额退款"
+              : "GM 没收彩池";
+        setRooms((prev) =>
+          prev.map((item) =>
+            item.id === roomId
+              ? {
+                  ...item,
+                  settled: true,
+                  lottery: {
+                    ...item.lottery,
+                    enabled: false,
+                    pot: 0,
+                    winner: decision === "winner" ? winner : label,
+                    verified: decision === "winner" ? [winner!] : [],
+                  },
+                }
+              : item,
+          ),
+        );
+        setBillingRecords((current) => [
+          {
+            id: uid(),
+            username: ADMIN_USERNAME,
+            type: "lottery",
+            amount: decision === "confiscate" ? 0 : pot,
+            reason: `${label}：${room.boss}`,
+            balanceAfter: 0,
+            createdAt: Date.now(),
+          },
+          ...current,
+        ]);
+        addSecurityLog(
+          "lottery",
+          "critical",
+          "GM 强制裁决",
+          `${room.boss} · ${label} · ${pot} 金币`,
+          ADMIN_USERNAME,
+        );
+        showToast(`${label}完成，共处理 ${pot} 金币`);
       },
       addCoins: (amount, reason) => {
         setProfileState((current) => {
@@ -1077,6 +1252,53 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           return next;
         });
         showToast("VIP 插队特权已开启");
+      },
+      forceLaunchRoom: (roomId) => {
+        if (!isAdmin) return;
+        const room = rooms.find((item) => item.id === roomId);
+        if (!room || room.launched) return;
+        setRooms((prev) =>
+          prev.map((item) =>
+            item.id === roomId
+              ? {
+                  ...item,
+                  launched: true,
+                  battleEnded: false,
+                  settled: false,
+                  battleEndsAt: Date.now() + Math.max(1, item.minutes) * 60 * 1000,
+                }
+              : item,
+          ),
+        );
+        addSecurityLog(
+          "auth",
+          "critical",
+          "GM 强制发车",
+          `${room.boss} · ${room.id}`,
+          ADMIN_USERNAME,
+        );
+        showToast("房间已强制发车");
+      },
+      forceKickMember: (roomId, memberId) => {
+        if (!isAdmin) return;
+        const room = rooms.find((item) => item.id === roomId);
+        const member = room?.queue.find((item) => item.id === memberId);
+        if (!room || !member) return;
+        setRooms((prev) =>
+          prev.map((item) =>
+            item.id === roomId
+              ? { ...item, queue: item.queue.filter((entry) => entry.id !== memberId) }
+              : item,
+          ),
+        );
+        addSecurityLog(
+          "auth",
+          "warning",
+          "GM 移出队员",
+          `${member.name} from ${room.boss}`,
+          ADMIN_USERNAME,
+        );
+        showToast(`${member.name} 已被移出房间`);
       },
       createRoom: (r) =>
         setRooms((prev) => [
@@ -1158,8 +1380,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       launchRoom: (roomId) => {
         setRooms((prev) =>
           prev.map((room) =>
-            room.id === roomId &&
-            (room.hostName === profile.trainerName || authUser?.role === "admin")
+            room.id === roomId && (room.hostName === profile.trainerName || isAdmin)
               ? {
                   ...room,
                   launched: true,
@@ -1178,7 +1399,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           prev.map((room) =>
             room.id === roomId &&
             !room.battleEnded &&
-            (room.hostName === profile.trainerName || authUser?.role === "admin")
+            (room.hostName === profile.trainerName || isAdmin)
               ? { ...room, battleEnded: true, battleEndsAt: Date.now() }
               : room,
           ),
@@ -1191,9 +1412,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           if (room)
             setChatMessages((current) => current.filter((message) => message.roomId !== roomId));
           return prev.filter(
-            (room) =>
-              room.id !== roomId ||
-              (room.hostName !== profile.trainerName && authUser?.role !== "admin"),
+            (room) => room.id !== roomId || (room.hostName !== profile.trainerName && !isAdmin),
           );
         }),
       addPost: (p) =>
@@ -1284,10 +1503,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           room &&
           (room.hostName === profile.trainerName ||
             room.queue.some((member) => member.isSelf) ||
-            authUser?.role === "admin");
+            isAdmin);
         if (!canChat) return;
         if (!text.trim() && !image) return;
         if (hasBlockedChatTerm(text)) {
+          addSecurityLog("chat", "warning", "敏感词拦截", `房间 ${roomId}：${text.slice(0, 120)}`);
           showToast("消息包含受限交易内容，无法发送");
           return;
         }
@@ -1307,6 +1527,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       sendDirectMessage: (username, text, image) => {
         if (!text.trim() && !image) return;
         if (hasBlockedChatTerm(text)) {
+          addSecurityLog(
+            "chat",
+            "warning",
+            "敏感词拦截",
+            `私聊 ${username}：${text.slice(0, 120)}`,
+          );
           showToast("消息包含受限交易内容，无法发送");
           return;
         }
@@ -1333,6 +1559,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       openDirectChat: (username) => setDirectChatTarget(username),
       closeDirectChat: () => setDirectChatTarget(null),
       billingRecords,
+      securityLogs,
       submitDeposit,
       manualAdjustBalance,
       toggleFrozenAccount,
@@ -1356,9 +1583,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       onlineUsers,
       directChatTarget,
       billingRecords,
+      securityLogs,
       accounts,
       copy,
       broadcastSiren,
+      addSecurityLog,
       isAccountFrozen,
       login,
       manualAdjustBalance,
@@ -1366,6 +1595,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       resetAccountPassword,
       submitDeposit,
       toggleAccountVip,
+      toggleFrozenAccount,
       updateAccount,
     ],
   );

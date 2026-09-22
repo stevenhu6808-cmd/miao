@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   Check,
@@ -70,6 +70,16 @@ function ProfilePage() {
   return (
     <PageShell>
       <SectionTitle title={t("profile.title")} />
+
+      {isAdmin ? (
+        <Link
+          to="/super-admin"
+          className="flex items-center justify-between rounded-xl border border-accent/40 bg-accent/10 px-3 py-3 text-xs font-bold text-accent"
+        >
+          <span>🛡️ GM 控制台</span>
+          <span>进入管理面板 →</span>
+        </Link>
+      ) : null}
 
       <Card className="space-y-3 glow-primary">
         <div className="flex items-center gap-3">
