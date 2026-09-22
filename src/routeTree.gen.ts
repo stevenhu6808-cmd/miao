@@ -11,6 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
+import { Route as BountiesRouteImport } from './routes/bounties'
+import { Route as FriendsRouteImport } from './routes/friends'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as SuperAdminRouteImport } from './routes/super-admin'
 import { Route as ToolsRouteImport } from './routes/tools'
@@ -24,6 +26,16 @@ const IndexRoute = IndexRouteImport.update({
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BountiesRoute = BountiesRouteImport.update({
+  id: '/bounties',
+  path: '/bounties',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FriendsRoute = FriendsRouteImport.update({
+  id: '/friends',
+  path: '/friends',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfileRoute = ProfileRouteImport.update({
@@ -50,6 +62,8 @@ const WallRoute = WallRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/bounties': typeof BountiesRoute
+  '/friends': typeof FriendsRoute
   '/profile': typeof ProfileRoute
   '/super-admin': typeof SuperAdminRoute
   '/tools': typeof ToolsRoute
@@ -58,6 +72,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/bounties': typeof BountiesRoute
+  '/friends': typeof FriendsRoute
   '/profile': typeof ProfileRoute
   '/super-admin': typeof SuperAdminRoute
   '/tools': typeof ToolsRoute
@@ -67,6 +83,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/bounties': typeof BountiesRoute
+  '/friends': typeof FriendsRoute
   '/profile': typeof ProfileRoute
   '/super-admin': typeof SuperAdminRoute
   '/tools': typeof ToolsRoute
@@ -74,13 +92,15 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/profile' | '/super-admin' | '/tools' | '/wall'
+  fullPaths: '/' | '/admin' | '/bounties' | '/friends' | '/profile' | '/super-admin' | '/tools' | '/wall'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/profile' | '/super-admin' | '/tools' | '/wall'
+  to: '/' | '/admin' | '/bounties' | '/friends' | '/profile' | '/super-admin' | '/tools' | '/wall'
   id:
     | '__root__'
     | '/'
     | '/admin'
+    | '/bounties'
+    | '/friends'
     | '/profile'
     | '/super-admin'
     | '/tools'
@@ -90,6 +110,8 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  BountiesRoute: typeof BountiesRoute
+  FriendsRoute: typeof FriendsRoute
   ProfileRoute: typeof ProfileRoute
   SuperAdminRoute: typeof SuperAdminRoute
   ToolsRoute: typeof ToolsRoute
@@ -110,6 +132,20 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bounties': {
+      id: '/bounties'
+      path: '/bounties'
+      fullPath: '/bounties'
+      preLoaderRoute: typeof BountiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/friends': {
+      id: '/friends'
+      path: '/friends'
+      fullPath: '/friends'
+      preLoaderRoute: typeof FriendsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/profile': {
@@ -146,6 +182,8 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  BountiesRoute: BountiesRoute,
+  FriendsRoute: FriendsRoute,
   ProfileRoute: ProfileRoute,
   SuperAdminRoute: SuperAdminRoute,
   ToolsRoute: ToolsRoute,

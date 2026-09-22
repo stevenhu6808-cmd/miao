@@ -84,7 +84,7 @@
     background-image:
       radial-gradient(900px 500px at 15% -10%, oklch(0.78 0.16 195 / 0.16), transparent 70%),
       radial-gradient(700px 480px at 92% 8%, oklch(0.7 0.24 330 / 0.14), transparent 70%);
-    background-attachment: fixed;
+    background-attachment: scroll;
     -webkit-tap-highlight-color: transparent;
   }
 }
@@ -92,8 +92,16 @@
 @utility glass-card {
   background-image: var(--gradient-card);
   border: 1px solid var(--color-border);
-  backdrop-filter: blur(14px);
   border-radius: var(--radius-2xl);
+}
+
+.floating-mode main {
+  max-width: 32rem;
+  padding-bottom: 7rem;
+}
+
+.floating-mode main > :not(:first-child):not(:nth-child(2)):not(:nth-child(3)) {
+  display: none;
 }
 
 @utility neon-text {

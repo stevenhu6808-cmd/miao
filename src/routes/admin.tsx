@@ -36,12 +36,14 @@ export function AdminPage() {
     toggleAccountVip,
     resetAccountPassword,
     manualAdjustBalance,
+    billingRecords,
   } = useStore();
   const [filter, setFilter] = useState<"all" | "deposit">("all");
   const [selected, setSelected] = useState<FinanceOrder | null>(null);
   const [room, setRoom] = useState<Room | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [coins, setCoins] = useState<Record<string, string>>({});
+  const [userQuery, setUserQuery] = useState("");
   useEffect(() => {
     if (!isAdmin) void navigate({ to: "/" });
   }, [isAdmin, navigate]);
@@ -142,31 +144,49 @@ export function AdminPage() {
             title="用户控制中心"
             subtitle="调整金币、VIP、冻结账号、编辑资料与重置密码"
           />
+          <Input
+            value={userQuery}
+            onChange={(event) => setUserQuery(event.target.value)}
+            placeholder="搜索用户名、训练家名称或好友代码"
+          />
           <div className="space-y-2">
-            {accounts.length ? (
-              accounts.map((account) => (
-                <UserRow
-                  key={account.username}
-                  account={account}
-                  frozen={frozenAccounts.includes(account.username)}
-                  editing={editing === account.username}
-                  coin={coins[account.username] ?? ""}
-                  setCoin={(value) => setCoins({ ...coins, [account.username]: value })}
-                  adjust={() => adjust(account)}
-                  toggleFreeze={() => toggleFrozenAccount(account.username)}
-                  toggleVip={() => toggleAccountVip(account.username)}
-                  edit={() => setEditing(editing === account.username ? null : account.username)}
-                  save={(profile, password) => {
-                    updateAccount(account.username, profile, password || undefined);
-                    setEditing(null);
-                    showToast("用户资料已保存");
-                  }}
-                  reset={(password) => {
-                    resetAccountPassword(account.username, password);
-                    showToast("密码已重置");
-                  }}
-                />
-              ))
+            {accounts.filter((account) =>
+              `${account.username} ${account.profile.trainerName} ${account.profile.friendCode}`
+                .toLowerCase()
+                .includes(userQuery.trim().toLowerCase()),
+            ).length ? (
+              accounts
+                .filter((account) =>
+                  `${account.username} ${account.profile.trainerName} ${account.profile.friendCode}`
+                    .toLowerCase()
+                    .includes(userQuery.trim().toLowerCase()),
+                )
+                .map((account) => (
+                  <UserRow
+                    key={account.username}
+                    account={account}
+                    frozen={frozenAccounts.includes(account.username)}
+                    editing={editing === account.username}
+                    coin={coins[account.username] ?? ""}
+                    setCoin={(value) => setCoins({ ...coins, [account.username]: value })}
+                    adjust={() => adjust(account)}
+                    toggleFreeze={() => toggleFrozenAccount(account.username)}
+                    toggleVip={() => toggleAccountVip(account.username)}
+                    edit={() => setEditing(editing === account.username ? null : account.username)}
+                    save={(profile, password) => {
+                      updateAccount(account.username, profile, password || undefined);
+                      setEditing(null);
+                      showToast("用户资料已保存");
+                    }}
+                    reset={(password) => {
+                      resetAccountPassword(account.username, password);
+                      showToast("密码已重置");
+                    }}
+                    activity={billingRecords
+                      .filter((record) => record.username === account.username)
+                      .slice(0, 3)}
+                  />
+                ))
             ) : (
               <p className="text-xs text-muted-foreground">暂无注册玩家。</p>
             )}
@@ -294,6 +314,7 @@ function UserRow({
   edit: () => void;
   save: (profile: Profile, password: string) => void;
   reset: (password: string) => void;
+  activity: import("@/lib/store").BillingRecord[];
 }) {
   const [draft, setDraft] = useState(account.profile);
   const [password, setPassword] = useState("");
@@ -385,6 +406,16 @@ function UserRow({
           </div>
         </div>
       ) : null}
+      {activity.length ? (
+        <div className="mt-3 border-t border-border pt-2 text-[10px] text-muted-foreground">
+          最近活动：
+          {activity
+            .map(
+              (record) => `${record.amount > 0 ? "+" : ""}${record.amount} 金币 · ${record.reason}`,
+            )
+            .join("；")}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -463,7 +494,7 @@ function Dialog({
   close: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-background/80 px-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-background/95 px-4">
       <div className="glass-card max-h-[90vh] w-full max-w-2xl overflow-auto p-5">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-display text-lg font-bold text-primary">{title}</h2>

@@ -24,8 +24,7 @@ export const Route = createFileRoute("/profile")({
 
 function ProfilePage() {
   const { t } = useI18n();
-  const { profile, setProfile, isAdmin, copy, showToast, addCoins, buyVip, submitDeposit } =
-    useStore();
+  const { profile, setProfile, isAdmin, copy, showToast, buyVip, submitDeposit } = useStore();
   const [draft, setDraft] = useState(profile);
   const [monetizationOpen, setMonetizationOpen] = useState(false);
   const [financeMode, setFinanceMode] = useState<"deposit">("deposit");
@@ -145,14 +144,14 @@ function ProfilePage() {
       </Card>
 
       {monetizationOpen ? (
-        <div className="fixed inset-0 z-[80] grid place-items-center bg-background/75 px-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[80] grid place-items-center bg-background/95 px-4">
           <div className="glass-card w-full max-w-md space-y-4 border-vip/30 p-5 glow-accent">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2 font-display text-lg font-bold text-vip">
-                  <Crown className="h-5 w-5" /> Monetization Suite
+                  <Crown className="h-5 w-5" /> 金币充值
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">只进不出模式 · 固定套餐充值</p>
+                <p className="mt-1 text-xs text-muted-foreground">固定套餐充值，提交后进入审核</p>
               </div>
               <button
                 aria-label="Close"
@@ -196,10 +195,10 @@ function ProfilePage() {
                   onChange={(event) => setFinanceCoins(event.target.value)}
                 />
               </Field>
-              <Field label="收款账号信息">
+              <Field label="支付备注">
                 <Input
                   value={financeAccount}
-                  placeholder="钱包地址 / 支付账号 / 备注"
+                  placeholder="填写支付方式或订单备注"
                   onChange={(event) => setFinanceAccount(event.target.value)}
                 />
               </Field>
@@ -253,46 +252,6 @@ function ProfilePage() {
               >
                 提交充值审核
               </Button>
-            </div>
-            <div className="space-y-2">
-              <button
-                className="flex w-full items-center gap-3 rounded-xl border border-primary/30 bg-primary/10 p-3 text-left transition hover:bg-primary/15"
-                onClick={() => addCoins(5, "激励广告奖励")}
-              >
-                <Gift className="h-5 w-5 text-primary" />
-                <span className="flex-1">
-                  <span className="block text-sm font-semibold">观看激励广告</span>
-                  <span className="text-[11px] text-muted-foreground">完整观看后获得 +5 金币</span>
-                </span>
-                <span className="font-display text-sm font-bold text-primary">+5</span>
-              </button>
-              <button
-                className="flex w-full items-center gap-3 rounded-xl border border-accent/30 bg-accent/10 p-3 text-left transition hover:bg-accent/15 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={profile.vip}
-                onClick={() => buyVip()}
-              >
-                <Crown className="h-5 w-5 text-accent" />
-                <span className="flex-1">
-                  <span className="block text-sm font-semibold">购买 VIP 插队特权</span>
-                  <span className="text-[11px] text-muted-foreground">199 金币 · 优先进入队列</span>
-                </span>
-                {profile.vip ? (
-                  <Check className="h-4 w-4 text-primary" />
-                ) : (
-                  <span className="font-display text-sm font-bold text-accent">199</span>
-                )}
-              </button>
-              <button
-                className="flex w-full items-center gap-3 rounded-xl border border-vip/30 bg-vip/10 p-3 text-left transition hover:bg-vip/15"
-                onClick={() => addCoins(50, "测试充值包")}
-              >
-                <Coins className="h-5 w-5 text-vip" />
-                <span className="flex-1">
-                  <span className="block text-sm font-semibold">金币充值包</span>
-                  <span className="text-[11px] text-muted-foreground">测试模式 · 购买 50 金币</span>
-                </span>
-                <span className="font-display text-sm font-bold text-vip">+50</span>
-              </button>
             </div>
             <Button variant="outline" className="w-full" onClick={() => setMonetizationOpen(false)}>
               关闭

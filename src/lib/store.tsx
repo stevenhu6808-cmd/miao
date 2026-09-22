@@ -48,8 +48,16 @@ export type Bounty = {
   status: BountyStatus;
   acceptedBy?: string;
   acceptedUsername?: string;
+  proof?: string;
 };
-export type Lottery = { enabled: boolean; entries: string[]; winner?: string; pot: number };
+export type Lottery = {
+  enabled: boolean;
+  entries: string[];
+  winner?: string;
+  pot: number;
+  proofs?: Record<string, string>;
+  verified?: string[];
+};
 export type BillingRecord = {
   id: string;
   username: string;
@@ -125,6 +133,39 @@ export type FinanceOrder = {
 };
 
 export type Account = { username: string; password: string; profile: Profile };
+export type FriendRequest = {
+  id: string;
+  from: string;
+  to: string;
+  status: "pending" | "accepted";
+};
+export type ChatMessage = {
+  id: string;
+  from: string;
+  to?: string;
+  roomId?: string;
+  text: string;
+  image?: string;
+  createdAt: number;
+};
+
+export const CHAT_SAFETY_NOTICE = "本平台仅供组队交流，严禁私下进行宝可梦、账号或道具买卖交易";
+const BLOCKED_CHAT_TERMS = [
+  "买卖",
+  "出售",
+  "软妹币",
+  "微信转账",
+  "支付宝",
+  "rmb",
+  "rmt",
+  "卖怪",
+  "买怪",
+];
+
+export function hasBlockedChatTerm(text: string) {
+  const normalized = text.toLowerCase();
+  return BLOCKED_CHAT_TERMS.some((term) => normalized.includes(term));
+}
 
 type StoredAccount = {
   username: string;
@@ -140,7 +181,8 @@ export const FORMATIONS: Formation[] = [
 
 const ADMIN_USERNAME = "admin";
 const ADMIN_PASSWORD = "5500123488htk";
-const SIREN_DURATION_MS = 3 * 60 * 1000;
+const SIREN_DURATION_MS = 10 * 1000;
+const SIREN_COST = 5;
 const DEPOSIT_PACKAGES = [
   { id: "mini", label: "$0.99", usd: 0.99, coins: 100 },
   { id: "starter", label: "$4.99", usd: 4.99, coins: 500 },
@@ -357,10 +399,12 @@ type StoreValue = {
   createBounty: (request: string, boss: string, reward: number) => void;
   cancelBounty: (bountyId: string) => void;
   acceptBounty: (bountyId: string) => void;
+  submitBountyProof: (bountyId: string, proof: string) => void;
   settleBounty: (bountyId: string) => void;
   setFormation: (roomId: string, formationId: string) => void;
   toggleLottery: (roomId: string) => void;
   joinLottery: (roomId: string) => void;
+  submitLotteryProof: (roomId: string, proof: string) => void;
   settleRoom: (roomId: string, catchType: "shiny" | "hundo" | "normal") => void;
   addCoins: (amount: number, reason: string) => void;
   buyVip: () => void;
@@ -378,6 +422,15 @@ type StoreValue = {
   resetAccountPassword: (username: string, password: string) => void;
   manualAdjustBalance: (username: string, amount: number, reason: string) => void;
   isAccountFrozen: (username: string) => boolean;
+  friendRequests: FriendRequest[];
+  friends: string[];
+  onlineUsers: string[];
+  sendFriendRequest: (username: string) => void;
+  acceptFriendRequest: (requestId: string) => void;
+  sendRoomMessage: (roomId: string, text: string, image?: string) => void;
+  roomMessages: (roomId: string) => ChatMessage[];
+  sendDirectMessage: (username: string, text: string, image?: string) => void;
+  directMessages: (username: string) => ChatMessage[];
 };
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -452,6 +505,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       status: "open",
     },
   ]);
+  const [friendRequests, setFriendRequests] = useState<FriendRequest[]>(() =>
+    readStoredList<FriendRequest>("raid-nexus-friend-requests"),
+  );
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() =>
+    readStoredList<ChatMessage>("raid-nexus-chat-messages"),
+  );
+  const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
 
   useEffect(() => {
     const raw = localStorage.getItem("raid-nexus-profile");
@@ -492,6 +552,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => writeStored("raid-nexus-finance", financeOrders), [financeOrders]);
   useEffect(() => writeStored("raid-nexus-billing", billingRecords), [billingRecords]);
   useEffect(() => writeStored("raid-nexus-frozen", frozenAccounts), [frozenAccounts]);
+  useEffect(() => writeStored("raid-nexus-friend-requests", friendRequests), [friendRequests]);
+  useEffect(() => writeStored("raid-nexus-chat-messages", chatMessages), [chatMessages]);
+
+  useEffect(() => {
+    const presenceKey = "raid-nexus-presence";
+    const markOnline = () => {
+      const current = readStored<Record<string, number>>(presenceKey, {});
+      current[profile.trainerName] = Date.now();
+      writeStored(presenceKey, current);
+      setOnlineUsers(
+        Object.entries(current)
+          .filter(([, stamp]) => Date.now() - stamp < 30000)
+          .map(([name]) => name),
+      );
+    };
+    markOnline();
+    const timer = window.setInterval(markOnline, 10000);
+    const receive = () => markOnline();
+    window.addEventListener("storage", receive);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("storage", receive);
+    };
+  }, [profile.trainerName]);
 
   const setProfile = (p: Profile) => {
     setProfileState(p);
@@ -528,30 +612,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const room = rooms.find((item) => item.id === roomId);
     const canManage = room && (room.hostName === profile.trainerName || authUser?.role === "admin");
     if (!room || !canManage) return;
-    if (profile.coins < 30) {
-      showToast("金币不足，需要 30 金币广播警报");
+    if (profile.coins < SIREN_COST) {
+      showToast(`金币不足，需要 ${SIREN_COST} 金币广播警报`);
       return;
     }
 
     const siren: Siren = {
       id: uid(),
       host: room.hostName || profile.trainerName,
-      message: `${room.boss} 队伍紧急发车，3 分钟倒计时启动，未到场玩家请及时确认。`,
+      message: `${room.boss} 队伍紧急发车，10 秒倒计时启动，未到场玩家请及时确认。`,
       roomId,
       createdAt: Date.now(),
       expiresAt: Date.now() + SIREN_DURATION_MS,
     };
 
-    setSirens((prev) => [siren, ...prev].slice(0, 3));
-    setProfileState((current) => ({ ...current, coins: current.coins - 30 }));
+    setSirens((prev) => [...prev, siren]);
+    setProfileState((current) => ({ ...current, coins: current.coins - SIREN_COST }));
     setBillingRecords((current) => [
       {
         id: uid(),
         username: authUser?.username ?? profile.trainerName,
         type: "reward",
-        amount: -30,
+        amount: -SIREN_COST,
         reason: `房间警报：${room.boss}`,
-        balanceAfter: profile.coins - 30,
+        balanceAfter: profile.coins - SIREN_COST,
         createdAt: Date.now(),
       },
       ...current,
@@ -561,8 +645,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch {
       /* ignore storage errors */
     }
-    showToast("全服紧急发车警报已广播");
+    showToast("全服紧急发车警报已广播，显示 10 秒");
   };
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setSirens((current) => current.filter((siren) => siren.expiresAt > Date.now()));
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const isAuthenticated = authUser !== null;
   const isAdmin = authUser?.role === "admin";
@@ -776,7 +867,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       if (event.key !== "raid-nexus-siren" || !event.newValue) return;
       try {
-        setSirens((prev) => [JSON.parse(event.newValue!) as Siren, ...prev].slice(0, 3));
+        setSirens((prev) => [...prev, JSON.parse(event.newValue!) as Siren]);
       } catch {
         /* ignore malformed demo events */
       }
@@ -865,10 +956,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         );
         showToast("悬赏已接单，待发布者确认完成");
       },
+      submitBountyProof: (bountyId, proof) => {
+        if (!proof.trim()) return;
+        setBounties((prev) =>
+          prev.map((bounty) =>
+            bounty.id === bountyId && bounty.acceptedBy === profile.trainerName
+              ? { ...bounty, proof }
+              : bounty,
+          ),
+        );
+        showToast("悬赏凭证已提交，等待发布者确认");
+      },
       settleBounty: (bountyId) => {
         const bounty = bounties.find((item) => item.id === bountyId);
-        if (!bounty || bounty.status !== "accepted" || bounty.author !== profile.trainerName)
+        if (
+          !bounty ||
+          bounty.status !== "accepted" ||
+          bounty.author !== profile.trainerName ||
+          !bounty.proof
+        ) {
+          if (bounty?.status === "accepted") showToast("请先审核接单人上传的截图凭证");
           return;
+        }
         const target = accounts.find(
           (account) =>
             account.profile.trainerName === bounty.acceptedBy ||
@@ -971,6 +1080,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         ]);
         showToast("已参与彩池，扣除 5 金币");
       },
+      submitLotteryProof: (roomId, proof) => {
+        const room = rooms.find((item) => item.id === roomId);
+        if (!room || !room.lottery.entries.includes(profile.trainerName) || !proof.trim()) return;
+        setRooms((prev) =>
+          prev.map((item) =>
+            item.id === roomId
+              ? {
+                  ...item,
+                  lottery: {
+                    ...item.lottery,
+                    proofs: { ...(item.lottery.proofs ?? {}), [profile.trainerName]: proof },
+                  },
+                }
+              : item,
+          ),
+        );
+        showToast("闪光证明已提交，等待队长审核");
+      },
       settleRoom: (roomId, catchType) => {
         const room = rooms.find((item) => item.id === roomId);
         if (
@@ -980,16 +1107,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           room.lottery.entries.length === 0
         )
           return;
-        if (catchType === "normal") {
+        const winners = Object.keys(room.lottery.proofs ?? {});
+        if (catchType === "normal" || winners.length === 0) {
           setRooms((prev) =>
             prev.map((item) =>
-              item.id === roomId ? { ...item, lottery: { ...item.lottery, enabled: false } } : item,
+              item.id === roomId
+                ? {
+                    ...item,
+                    lottery: { ...item.lottery, enabled: false, pot: 0, winner: "已全额退回" },
+                  }
+                : item,
             ),
           );
-          showToast("本局没有 Shiny 或 100% IV，彩池已关闭");
+          const refunds = room.lottery.entries.length * 5;
+          const nextAccounts = accounts.map((account) =>
+            room.lottery.entries.includes(account.profile.trainerName)
+              ? { ...account, profile: { ...account.profile, coins: account.profile.coins + 5 } }
+              : account,
+          );
+          replaceAccounts(nextAccounts);
+          if (room.lottery.entries.includes(profile.trainerName)) {
+            setProfileState((current) => ({ ...current, coins: current.coins + 5 }));
+          }
+          showToast(`无有效闪光证明，彩池 ${refunds} 金币已退回下注玩家`);
           return;
         }
-        const winners = room.lottery.entries.slice();
         if (winners.length === 0) return;
         const prize = Math.floor(room.lottery.pot / winners.length);
         setRooms((prev) =>
@@ -997,7 +1139,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             item.id === roomId
               ? {
                   ...item,
-                  lottery: { ...item.lottery, enabled: false, winner: winners.join("、"), pot: 0 },
+                  lottery: {
+                    ...item.lottery,
+                    enabled: false,
+                    winner: winners.join("、"),
+                    verified: winners,
+                    pot: 0,
+                  },
                 }
               : item,
           ),
@@ -1106,6 +1254,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 })();
 
             if (nextQueue.length >= room.capacity) {
+              setChatMessages((current) => current.filter((message) => message.roomId !== room.id));
               return {
                 ...room,
                 queue: nextQueue,
@@ -1142,7 +1291,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               : room,
           ),
         ),
-      launchRoom: (roomId) =>
+      launchRoom: (roomId) => {
         setRooms((prev) =>
           prev.map((room) =>
             room.id === roomId &&
@@ -1150,15 +1299,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               ? { ...room, launched: true, lottery: { ...room.lottery, enabled: false } }
               : room,
           ),
-        ),
+        );
+        setChatMessages((current) => current.filter((message) => message.roomId !== roomId));
+      },
       removeRoom: (roomId) =>
-        setRooms((prev) =>
-          prev.filter(
+        setRooms((prev) => {
+          const room = prev.find((item) => item.id === roomId);
+          if (room)
+            setChatMessages((current) => current.filter((message) => message.roomId !== roomId));
+          return prev.filter(
             (room) =>
               room.id !== roomId ||
               (room.hostName !== profile.trainerName && authUser?.role !== "admin"),
-          ),
-        ),
+          );
+        }),
       addPost: (p) =>
         setPosts((prev) => [
           {
@@ -1190,6 +1344,108 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ),
         ),
       removePost: (postId) => setPosts((prev) => prev.filter((p) => p.id !== postId)),
+      friendRequests,
+      friends: Array.from(
+        new Set(
+          friendRequests
+            .filter((request) => request.status === "accepted")
+            .flatMap((request) =>
+              request.from === profile.trainerName
+                ? [request.to]
+                : request.to === profile.trainerName
+                  ? [request.from]
+                  : [],
+            ),
+        ),
+      ),
+      onlineUsers,
+      sendFriendRequest: (username) => {
+        const target = username.trim();
+        if (!target || target === profile.trainerName) return;
+        if (
+          !accounts.some(
+            (account) => account.profile.trainerName === target || account.username === target,
+          )
+        ) {
+          showToast("未找到该玩家");
+          return;
+        }
+        if (
+          friendRequests.some(
+            (request) =>
+              request.from === profile.trainerName &&
+              request.to === target &&
+              request.status === "pending",
+          )
+        ) {
+          showToast("好友申请已发送");
+          return;
+        }
+        setFriendRequests((current) => [
+          ...current,
+          { id: uid(), from: profile.trainerName, to: target, status: "pending" },
+        ]);
+        showToast("好友申请已发送");
+      },
+      acceptFriendRequest: (requestId) =>
+        setFriendRequests((current) =>
+          current.map((request) =>
+            request.id === requestId && request.to === profile.trainerName
+              ? { ...request, status: "accepted" }
+              : request,
+          ),
+        ),
+      sendRoomMessage: (roomId, text, image) => {
+        const room = rooms.find((item) => item.id === roomId);
+        const canChat =
+          room &&
+          (room.hostName === profile.trainerName ||
+            room.queue.some((member) => member.isSelf) ||
+            authUser?.role === "admin");
+        if (!canChat) return;
+        if (!text.trim() && !image) return;
+        if (hasBlockedChatTerm(text)) {
+          showToast("消息包含受限交易内容，无法发送");
+          return;
+        }
+        setChatMessages((current) => [
+          ...current,
+          {
+            id: uid(),
+            roomId,
+            from: profile.trainerName,
+            text: text.trim(),
+            ...(image ? { image } : {}),
+            createdAt: Date.now(),
+          },
+        ]);
+      },
+      roomMessages: (roomId) => chatMessages.filter((message) => message.roomId === roomId),
+      sendDirectMessage: (username, text, image) => {
+        if (!text.trim() && !image) return;
+        if (hasBlockedChatTerm(text)) {
+          showToast("消息包含受限交易内容，无法发送");
+          return;
+        }
+        setChatMessages((current) => [
+          ...current,
+          {
+            id: uid(),
+            from: profile.trainerName,
+            to: username,
+            text: text.trim(),
+            ...(image ? { image } : {}),
+            createdAt: Date.now(),
+          },
+        ]);
+      },
+      directMessages: (username) =>
+        chatMessages.filter(
+          (message) =>
+            !message.roomId &&
+            ((message.from === profile.trainerName && message.to === username) ||
+              (message.from === username && message.to === profile.trainerName)),
+        ),
       billingRecords,
       submitDeposit,
       manualAdjustBalance,
@@ -1210,6 +1466,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       sirens,
       leaderboard,
       bounties,
+      friendRequests,
+      chatMessages,
+      onlineUsers,
       billingRecords,
       accounts,
       copy,
