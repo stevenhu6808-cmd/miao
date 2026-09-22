@@ -8,7 +8,6 @@ import {
   ScanLine,
   Siren,
   Sparkles,
-  Target,
   Timer,
   Trophy,
   Upload,
@@ -50,12 +49,16 @@ const TYPES = ["Psychic", "Dragon", "Fire", "Water", "Grass", "Electric", "Dark"
 
 function RoomsPage() {
   const { t } = useI18n();
-  const { rooms, profile, sirens, leaderboard, bounties } = useStore();
+  const { rooms, profile, sirens, leaderboard } = useStore();
   const [filter, setFilter] = useState<RaidMode>("remote");
   const [creating, setCreating] = useState(false);
 
   const visible = rooms.filter(
-    (r) => !r.launched && r.queue.length < r.capacity && r.mode === filter,
+    (r) =>
+      r.mode === filter &&
+      (!r.launched ||
+        r.hostName === profile.trainerName ||
+        r.queue.some((member) => member.isSelf)),
   );
   const queued = rooms.reduce((n, r) => n + r.queue.length, 0);
 
@@ -115,7 +118,7 @@ function RoomsPage() {
         </Card>
       </div>
 
-      <LiveOpsPanel leaderboard={leaderboard} bounties={bounties} />
+      <LiveOpsPanel leaderboard={leaderboard} />
 
       <div className="flex items-center gap-2">
         {(["remote", "local"] as const).map((f) => (
@@ -154,16 +157,10 @@ function RoomsPage() {
 
 function LiveOpsPanel({
   leaderboard,
-  bounties,
 }: {
   leaderboard: ReturnType<typeof useStore>["leaderboard"];
-  bounties: ReturnType<typeof useStore>["bounties"];
 }) {
   const { t } = useI18n();
-  const { createBounty, acceptBounty, cancelBounty, settleBounty, profile } = useStore();
-  const [request, setRequest] = useState("");
-  const [boss, setBoss] = useState("Shadow Mewtwo");
-  const [reward, setReward] = useState(100);
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -196,70 +193,8 @@ function LiveOpsPanel({
           ))}
         </div>
       </Card>
-      <Card className="space-y-3">
-        <div className="flex items-center gap-2 text-sm font-bold">
-          <Target className="h-4 w-4 text-accent" />
-          {t("bounty.title")}
-        </div>
-        <div className="grid grid-cols-[1fr_0.7fr_0.45fr] gap-2">
-          <Input
-            value={request}
-            onChange={(e) => setRequest(e.target.value)}
-            placeholder={t("bounty.placeholder")}
-          />
-          <Input value={boss} onChange={(e) => setBoss(e.target.value)} placeholder="Boss" />
-          <Input type="number" value={reward} onChange={(e) => setReward(Number(e.target.value))} />
-        </div>
-        <Button
-          size="sm"
-          className="w-full"
-          disabled={!request.trim()}
-          onClick={() => {
-            createBounty(request.trim(), boss.trim() || "Raid Boss", reward);
-            setRequest("");
-          }}
-        >
-          {t("bounty.publish")}
-        </Button>
-        <div className="space-y-2">
-          {bounties
-            .filter((bounty) => bounty.status === "open")
-            .slice(0, 3)
-            .map((bounty) => (
-              <div key={bounty.id} className="rounded-xl border border-border bg-surface-2/35 p-3">
-                <div className="flex items-start gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-semibold">{bounty.request}</div>
-                    <div className="mt-1 text-[10px] text-muted-foreground">
-                      {bounty.author} · {bounty.boss}
-                    </div>
-                  </div>
-                  <Badge tone={bounty.status === "completed" ? "muted" : "vip"}>
-                    {bounty.reward} 金
-                  </Badge>
-                </div>
-                {bounty.author === profile.trainerName ? (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="mt-2"
-                    onClick={() => cancelBounty(bounty.id)}
-                  >
-                    取消悬赏
-                  </Button>
-                ) : bounty.status === "open" ? (
-                  <Button
-                    size="sm"
-                    variant="accent"
-                    className="mt-2"
-                    onClick={() => acceptBounty(bounty.id)}
-                  >
-                    {t("bounty.accept")}
-                  </Button>
-                ) : null}
-              </div>
-            ))}
-        </div>
+      <Card className="flex items-center justify-center text-center text-sm text-muted-foreground">
+        闪光彩池仅在房间内开放，发车后锁定并进入凭证审核流程。
       </Card>
     </div>
   );
@@ -434,8 +369,13 @@ function RoomCard({ room }: { room: Room }) {
     joinLottery,
     submitLotteryProof,
     settleRoom,
+    endBattle,
     roomMessages,
     sendRoomMessage,
+    accounts,
+    friends,
+    sendFriendRequest,
+    openDirectChat,
   } = useStore();
   const isHost = room.hostName === profile.trainerName;
   const canManage = isHost || isAdmin;
@@ -449,6 +389,17 @@ function RoomCard({ room }: { room: Room }) {
   const [chatDraft, setChatDraft] = useState("");
   const [chatImage, setChatImage] = useState("");
   const [open, setOpen] = useState(false);
+  const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!room.launched || room.battleEnded) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [room.launched, room.battleEnded]);
+
+  const remainingSeconds = Math.max(0, Math.ceil(((room.battleEndsAt ?? now) - now) / 1000));
+  const battleEnded = room.battleEnded || remainingSeconds === 0;
 
   if (!open) {
     return (
@@ -517,7 +468,11 @@ function RoomCard({ room }: { room: Room }) {
               <Badge tone={room.mode === "remote" ? "primary" : "accent"}>
                 {t(`rooms.mode.${room.mode}`)}
               </Badge>
-              {room.launched ? <Badge tone="muted">{t("rooms.launched")}</Badge> : null}
+              {room.launched ? (
+                <Badge tone={battleEnded ? "vip" : "primary"}>
+                  {battleEnded ? "🏆 战斗结束" : "⚔️ 团战进行中"}
+                </Badge>
+              ) : null}
             </div>
             <h3 className="mt-2 font-display text-xl font-bold">{room.boss}</h3>
             <p className="text-xs text-muted-foreground">
@@ -620,9 +575,12 @@ function RoomCard({ room }: { room: Room }) {
                 className="flex items-center gap-2 rounded-xl bg-surface-2/40 px-3 py-2 text-xs"
               >
                 <span className="w-5 font-display text-muted-foreground">{i + 1}</span>
-                <span className="font-semibold">
+                <button
+                  className="font-semibold hover:text-primary"
+                  onClick={() => setSelectedPlayer(m.name)}
+                >
                   {m.isSelf ? `${m.name} (${t("rooms.you")})` : m.name}
-                </span>
+                </button>
                 {m.vip ? <Badge tone="vip">{t("rooms.vip")}</Badge> : null}
                 <span
                   className={cn(
@@ -755,12 +713,28 @@ function RoomCard({ room }: { room: Room }) {
               >
                 {t("rooms.launch")}
               </Button>
+              {room.launched && !battleEnded ? (
+                <Button size="sm" variant="vip" onClick={() => endBattle(room.id)}>
+                  🏆 结束战斗 / 上传结算
+                </Button>
+              ) : null}
               <Button size="sm" variant="danger" onClick={() => removeRoom(room.id)}>
-                {isAdmin && !isHost ? t("rooms.adminClean") : t("rooms.disband")}
+                {room.settled
+                  ? "🏠 解散并返回大厅"
+                  : isAdmin && !isHost
+                    ? t("rooms.adminClean")
+                    : t("rooms.disband")}
               </Button>
             </>
           ) : null}
         </div>
+
+        {room.launched && !battleEnded ? (
+          <div className="rounded-xl border border-primary/30 bg-primary/10 px-3 py-3 text-center text-sm font-bold text-primary">
+            ⚔️ 团战进行中 · 剩余 {Math.floor(remainingSeconds / 60)}:
+            {String(remainingSeconds % 60).padStart(2, "0")}
+          </div>
+        ) : null}
 
         <div className="rounded-xl border border-vip/25 bg-vip/5 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -783,12 +757,14 @@ function RoomCard({ room }: { room: Room }) {
           </div>
           <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
             <span>{t("lottery.hint")}</span>
-            {room.lottery.enabled && !room.lottery.entries.includes(profile.trainerName) ? (
+            {!room.launched &&
+            room.lottery.enabled &&
+            !room.lottery.entries.includes(profile.trainerName) ? (
               <Button size="sm" variant="vip" onClick={() => joinLottery(room.id)}>
                 {t("lottery.join")}
               </Button>
             ) : null}
-            {room.lottery.enabled && room.lottery.entries.includes(profile.trainerName) ? (
+            {room.launched && battleEnded && room.lottery.entries.includes(profile.trainerName) ? (
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-vip/40 px-2 py-1.5 text-[10px] font-semibold text-vip">
                   <Upload className="h-3.5 w-3.5" />
@@ -823,14 +799,40 @@ function RoomCard({ room }: { room: Room }) {
               {t("lottery.winner")}：{room.lottery.winner}
             </div>
           ) : null}
-          {canManage && room.lottery.enabled && room.lottery.pot > 0 ? (
+          {room.launched && Object.keys(room.lottery.proofs ?? {}).length ? (
+            <div className="mt-2 space-y-2">
+              {Object.entries(room.lottery.proofs ?? {}).map(([name, proof]) => (
+                <div
+                  key={name}
+                  className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 p-2"
+                >
+                  <img
+                    src={proof}
+                    alt={`${name} 闪光捕获截图`}
+                    className="h-14 w-14 rounded object-cover"
+                  />
+                  <div className="text-[10px]">
+                    <div className="font-bold text-primary">Trainer Name：{name}</div>
+                    <div className="text-muted-foreground">请核对截图中的训练家名称后批准结算</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {canManage &&
+          room.launched &&
+          (battleEnded || isAdmin) &&
+          room.lottery.enabled &&
+          room.lottery.pot > 0 ? (
             <div className="mt-2 flex gap-2">
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => {
                   const confirmed = window.confirm(
-                    "请先核对接单人的游戏角色名和闪光/100IV截图凭证，确认无误后再发放彩池金币。",
+                    isAdmin
+                      ? "超级管理员将强制按当前凭证结算彩池，确认继续？"
+                      : "请先核对截图中的 Trainer Name 与房间注册名称，确认无误后再发放彩池金币。",
                   );
                   if (confirmed) settleRoom(room.id, "shiny");
                 }}
@@ -842,6 +844,66 @@ function RoomCard({ room }: { room: Room }) {
               </Button>
             </div>
           ) : null}
+        </div>
+      </Card>
+      {selectedPlayer ? (
+        <PlayerCard
+          name={selectedPlayer}
+          account={accounts.find((account) => account.profile.trainerName === selectedPlayer)}
+          isFriend={friends.includes(selectedPlayer)}
+          onClose={() => setSelectedPlayer(null)}
+          onAdd={() => sendFriendRequest(selectedPlayer)}
+          onChat={() => {
+            openDirectChat(selectedPlayer);
+            setSelectedPlayer(null);
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function PlayerCard({
+  name,
+  account,
+  isFriend,
+  onClose,
+  onAdd,
+  onChat,
+}: {
+  name: string;
+  account?: ReturnType<typeof useStore>["accounts"][number];
+  isFriend: boolean;
+  onClose: () => void;
+  onAdd: () => void;
+  onChat: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[80] grid place-items-center bg-background/70 px-4"
+      onClick={onClose}
+    >
+      <Card className="w-full max-w-sm space-y-4" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center gap-3">
+          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-primary/15 font-display text-lg font-bold text-primary">
+            {name.slice(0, 2).toUpperCase()}
+          </div>
+          <div>
+            <div className="font-display text-lg font-bold">{name}</div>
+            <div className="text-xs text-muted-foreground">
+              {account ? `LV ${account.profile.level} · ${account.profile.gameCode}` : "房间队员"}
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          {!isFriend ? (
+            <Button className="flex-1" onClick={onAdd}>
+              ➕ 加为好友
+            </Button>
+          ) : null}
+          <Button className="flex-1" variant="outline" onClick={onChat}>
+            💬 发起私聊
+          </Button>
         </div>
       </Card>
     </div>

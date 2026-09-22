@@ -38,18 +38,6 @@ export type Siren = {
   createdAt: number;
   expiresAt: number;
 };
-export type BountyStatus = "open" | "accepted" | "completed" | "cancelled";
-export type Bounty = {
-  id: string;
-  author: string;
-  request: string;
-  reward: number;
-  boss: string;
-  status: BountyStatus;
-  acceptedBy?: string;
-  acceptedUsername?: string;
-  proof?: string;
-};
 export type Lottery = {
   enabled: boolean;
   entries: string[];
@@ -61,7 +49,7 @@ export type Lottery = {
 export type BillingRecord = {
   id: string;
   username: string;
-  type: "manual_adjust" | "reward" | "charge" | "bounty" | "lottery" | "deposit";
+  type: "manual_adjust" | "reward" | "charge" | "lottery" | "deposit";
   amount: number;
   reason: string;
   balanceAfter: number;
@@ -82,6 +70,9 @@ export type Room = {
   password: string;
   queue: Member[];
   launched: boolean;
+  battleEndsAt?: number;
+  battleEnded?: boolean;
+  settled?: boolean;
   createdAt: number;
   formationId: string;
   lottery: Lottery;
@@ -385,6 +376,7 @@ type StoreValue = {
   toggleReady: (roomId: string, memberId: string) => void;
   kick: (roomId: string, memberId: string) => void;
   launchRoom: (roomId: string) => void;
+  endBattle: (roomId: string) => void;
   removeRoom: (roomId: string) => void;
   addPost: (p: Omit<Post, "id" | "likes" | "liked" | "comments" | "createdAt" | "author">) => void;
   toggleLike: (postId: string) => void;
@@ -396,12 +388,6 @@ type StoreValue = {
   sirens: Siren[];
   broadcastSiren: (roomId: string) => void;
   leaderboard: SpeedrunEntry[];
-  bounties: Bounty[];
-  createBounty: (request: string, boss: string, reward: number) => void;
-  cancelBounty: (bountyId: string) => void;
-  acceptBounty: (bountyId: string) => void;
-  submitBountyProof: (bountyId: string, proof: string) => void;
-  settleBounty: (bountyId: string) => void;
   setFormation: (roomId: string, formationId: string) => void;
   toggleLottery: (roomId: string) => void;
   joinLottery: (roomId: string) => void;
@@ -490,24 +476,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       badge: "极速战神",
     },
     { id: "3", team: "Seoul Spark", boss: "Kyogre", seconds: 103, reward: 100, badge: "极速战神" },
-  ]);
-  const [bounties, setBounties] = useState<Bounty[]>([
-    {
-      id: uid(),
-      author: "MistyGo",
-      request: "求带过暗影 Boss，第一次挑战求稳",
-      reward: 100,
-      boss: "Shadow Mewtwo",
-      status: "open",
-    },
-    {
-      id: uid(),
-      author: "新手小火龙",
-      request: "今晚 20:30 求带过 Mega 雷公",
-      reward: 80,
-      boss: "Mega Raikou",
-      status: "open",
-    },
   ]);
   const [friendRequests, setFriendRequests] = useState<FriendRequest[]>(() =>
     readStoredList<FriendRequest>("raid-nexus-friend-requests"),
@@ -898,131 +866,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       copy,
       sirens: sirens.filter((siren) => siren.expiresAt > Date.now()),
       leaderboard,
-      bounties,
       broadcastSiren,
-      createBounty: (request, boss, reward) => {
-        const amount = Math.max(5, Math.floor(reward));
-        if (profile.coins < amount) {
-          showToast("金币不足，无法托管悬赏");
-          return;
-        }
-        setProfileState((current) => ({ ...current, coins: current.coins - amount }));
-        setBounties((prev) => [
-          { id: uid(), author: profile.trainerName, request, reward: amount, boss, status: "open" },
-          ...prev,
-        ]);
-        setBillingRecords((current) => [
-          {
-            id: uid(),
-            username: authUser?.username ?? profile.trainerName,
-            type: "bounty",
-            amount: -amount,
-            reason: `悬赏托管：${request}`,
-            balanceAfter: Math.max(0, profile.coins - amount),
-            createdAt: Date.now(),
-          },
-          ...current,
-        ]);
-        showToast("悬赏已发布，金币已托管");
-      },
-      cancelBounty: (bountyId) => {
-        const bounty = bounties.find((item) => item.id === bountyId);
-        if (!bounty || bounty.status !== "open" || bounty.author !== profile.trainerName) return;
-        setBounties((prev) =>
-          prev.map((item) => (item.id === bountyId ? { ...item, status: "cancelled" } : item)),
-        );
-        setProfileState((current) => ({ ...current, coins: current.coins + bounty.reward }));
-        setBillingRecords((current) => [
-          {
-            id: uid(),
-            username: authUser?.username ?? profile.trainerName,
-            type: "reward",
-            amount: bounty.reward,
-            reason: `取消悬赏退款：${bounty.request}`,
-            balanceAfter: profile.coins + bounty.reward,
-            createdAt: Date.now(),
-          },
-          ...current,
-        ]);
-        showToast(`悬赏已取消，退回 ${bounty.reward} 金币`);
-      },
-      acceptBounty: (bountyId) => {
-        setBounties((prev) =>
-          prev.map((bounty) =>
-            bounty.id === bountyId && bounty.status === "open"
-              ? {
-                  ...bounty,
-                  status: "accepted",
-                  acceptedBy: profile.trainerName,
-                  acceptedUsername: authUser?.username ?? profile.trainerName,
-                }
-              : bounty,
-          ),
-        );
-        showToast("悬赏已接单，待发布者确认完成");
-      },
-      submitBountyProof: (bountyId, proof) => {
-        if (!proof.trim()) return;
-        setBounties((prev) =>
-          prev.map((bounty) =>
-            bounty.id === bountyId && bounty.acceptedBy === profile.trainerName
-              ? { ...bounty, proof }
-              : bounty,
-          ),
-        );
-        showToast("悬赏凭证已提交，等待发布者确认");
-      },
-      settleBounty: (bountyId) => {
-        const bounty = bounties.find((item) => item.id === bountyId);
-        if (
-          !bounty ||
-          bounty.status !== "accepted" ||
-          bounty.author !== profile.trainerName ||
-          !bounty.proof
-        ) {
-          if (bounty?.status === "accepted") showToast("请先审核接单人上传的截图凭证");
-          return;
-        }
-        const target = accounts.find(
-          (account) =>
-            account.profile.trainerName === bounty.acceptedBy ||
-            account.username === bounty.acceptedUsername,
-        );
-        setBounties((prev) =>
-          prev.map((item) => (item.id === bountyId ? { ...item, status: "completed" } : item)),
-        );
-        setBillingRecords((current) => [
-          {
-            id: uid(),
-            username:
-              target?.username ??
-              bounty.acceptedUsername ??
-              bounty.acceptedBy ??
-              profile.trainerName,
-            type: "reward",
-            amount: bounty.reward,
-            reason: `悬赏结算：${bounty.request}`,
-            balanceAfter: (target?.profile.coins ?? profile.coins) + bounty.reward,
-            createdAt: Date.now(),
-          },
-          ...current,
-        ]);
-        if (target) {
-          const next = accounts.map((account) =>
-            account.username === target.username
-              ? {
-                  ...account,
-                  profile: { ...account.profile, coins: account.profile.coins + bounty.reward },
-                }
-              : account,
-          );
-          replaceAccounts(next);
-          if (authUser?.username === target.username) {
-            setProfileState((current) => ({ ...current, coins: current.coins + bounty.reward }));
-          }
-        }
-        showToast(`已确认完成，${bounty.acceptedBy ?? "接单人"}获得 ${bounty.reward} 金币`);
-      },
       setFormation: (roomId, formationId) =>
         setRooms((prev) =>
           prev.map((room) =>
@@ -1044,9 +888,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         ),
       joinLottery: (roomId) => {
         const room = rooms.find((item) => item.id === roomId);
+        const isParticipant =
+          room?.hostName === profile.trainerName || room?.queue.some((member) => member.isSelf);
         if (
           !room ||
           room.launched ||
+          !isParticipant ||
           !room.lottery.enabled ||
           room.lottery.entries.includes(profile.trainerName)
         ) {
@@ -1087,7 +934,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       submitLotteryProof: (roomId, proof) => {
         const room = rooms.find((item) => item.id === roomId);
-        if (!room || !room.lottery.entries.includes(profile.trainerName) || !proof.trim()) return;
+        const isParticipant =
+          room?.hostName === profile.trainerName || room?.queue.some((member) => member.isSelf);
+        if (
+          !room ||
+          !isParticipant ||
+          !room.lottery.entries.includes(profile.trainerName) ||
+          !proof.trim()
+        )
+          return;
         setRooms((prev) =>
           prev.map((item) =>
             item.id === roomId
@@ -1109,7 +964,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           !room ||
           (room.hostName !== profile.trainerName && authUser?.role !== "admin") ||
           !room.lottery.enabled ||
-          room.lottery.entries.length === 0
+          room.lottery.entries.length === 0 ||
+          (!room.battleEnded && authUser?.role !== "admin") ||
+          room.settled
         )
           return;
         const winners = Object.keys(room.lottery.proofs ?? {});
@@ -1119,6 +976,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               item.id === roomId
                 ? {
                     ...item,
+                    settled: true,
                     lottery: { ...item.lottery, enabled: false, pot: 0, winner: "已全额退回" },
                   }
                 : item,
@@ -1151,6 +1009,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                     verified: winners,
                     pot: 0,
                   },
+                  settled: true,
                 }
               : item,
           ),
@@ -1301,11 +1160,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           prev.map((room) =>
             room.id === roomId &&
             (room.hostName === profile.trainerName || authUser?.role === "admin")
-              ? { ...room, launched: true, lottery: { ...room.lottery, enabled: false } }
+              ? {
+                  ...room,
+                  launched: true,
+                  battleEnded: false,
+                  settled: false,
+                  battleEndsAt: Date.now() + Math.max(1, room.minutes) * 60 * 1000,
+                  lottery: { ...room.lottery },
+                }
               : room,
           ),
         );
         setChatMessages((current) => current.filter((message) => message.roomId !== roomId));
+      },
+      endBattle: (roomId) => {
+        setRooms((prev) =>
+          prev.map((room) =>
+            room.id === roomId &&
+            !room.battleEnded &&
+            (room.hostName === profile.trainerName || authUser?.role === "admin")
+              ? { ...room, battleEnded: true, battleEndsAt: Date.now() }
+              : room,
+          ),
+        );
+        showToast("战斗已结束，请上传闪光截图并提交审核");
       },
       removeRoom: (roomId) =>
         setRooms((prev) => {
@@ -1473,7 +1351,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       isAdmin,
       sirens,
       leaderboard,
-      bounties,
       friendRequests,
       chatMessages,
       onlineUsers,

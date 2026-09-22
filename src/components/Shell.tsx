@@ -11,8 +11,6 @@ import {
   IdCard,
   ImagePlus,
   MessageCircle,
-  Target,
-  Users,
   X,
   Zap,
 } from "lucide-react";
@@ -25,8 +23,6 @@ import { cn, compressImage } from "@/lib/utils";
 const NAV = [
   { to: "/", key: "nav.rooms", Icon: Swords },
   { to: "/wall", key: "nav.wall", Icon: Sparkles },
-  { to: "/bounties", key: "nav.bounties", Icon: Target },
-  { to: "/friends", key: "nav.friends", Icon: Users },
   { to: "/tools", key: "nav.tools", Icon: Calculator },
   { to: "/profile", key: "nav.profile", Icon: IdCard },
 ] as const;
@@ -357,7 +353,7 @@ function AuthDialog({ onClose, onAdminLogin }: { onClose: () => void; onAdminLog
 
 export function BottomBar() {
   const { t } = useI18n();
-  const { profile, copy, sirens, bounties } = useStore();
+  const { profile, copy, sirens } = useStore();
   const [floating, setFloating] = useState(false);
 
   return (
@@ -386,22 +382,6 @@ export function BottomBar() {
               >
                 <MessageCircle className="h-3.5 w-3.5" />
                 立即查看发车警报
-              </Link>
-            ) : null}
-            {bounties
-              .filter((item) => item.status === "open")
-              .sort((a, b) => b.reward - a.reward)[0] ? (
-              <Link
-                to="/bounties"
-                className="block rounded-xl bg-vip/10 px-3 py-2 text-[11px] font-semibold text-vip"
-              >
-                高额悬赏：
-                {
-                  bounties
-                    .filter((item) => item.status === "open")
-                    .sort((a, b) => b.reward - a.reward)[0]?.reward
-                }{" "}
-                金币
               </Link>
             ) : null}
             <Button
