@@ -1,4 +1,4 @@
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   Check,
@@ -34,6 +34,7 @@ export const Route = createFileRoute("/profile")({
 
 function ProfilePage() {
   const { t } = useI18n();
+  const navigate = useNavigate();
   const {
     profile,
     setProfile,
@@ -42,6 +43,9 @@ function ProfilePage() {
     showToast,
     buyVip,
     submitDeposit,
+    logout,
+    accounts,
+    onlineUsers,
     friends,
     friendRequests,
     sendFriendRequest,
@@ -56,6 +60,7 @@ function ProfilePage() {
   const [financeAccount, setFinanceAccount] = useState("");
   const [financeContact, setFinanceContact] = useState("");
   const [financeProof, setFinanceProof] = useState("");
+  const [playerQuery, setPlayerQuery] = useState("");
 
   const handleProof = async (file?: File) => {
     if (!file) return;
@@ -174,6 +179,83 @@ function ProfilePage() {
           {draft.vip ? t("profile.vipOn") : t("profile.vipOff")}
         </Button>
         <p className="text-[11px] text-muted-foreground">{t("profile.adminNote")}</p>
+        <Button
+          variant="outline"
+          className="w-full border-destructive/40 text-destructive hover:bg-destructive/10"
+          onClick={() => {
+            logout();
+            void navigate({ to: "/" });
+          }}
+        >
+          退出当前账号
+        </Button>
+      </Card>
+
+      <Card className="space-y-3">
+        <div className="flex items-center gap-2 text-sm font-bold">
+          <UserPlus className="h-4 w-4 text-primary" />
+          添加玩家与发起私聊
+        </div>
+        <Input
+          value={playerQuery}
+          onChange={(event) => setPlayerQuery(event.target.value)}
+          placeholder="搜索用户名、训练家名称或游戏代号"
+        />
+        <div className="space-y-2">
+          {accounts
+            .filter((account) => account.profile.trainerName !== profile.trainerName)
+            .filter((account) =>
+              `${account.username} ${account.profile.trainerName} ${account.profile.gameCode}`
+                .toLowerCase()
+                .includes(playerQuery.trim().toLowerCase()),
+            )
+            .slice(0, 8)
+            .map((account) => {
+              const name = account.profile.trainerName;
+              const isFriend = friends.includes(name);
+              return (
+                <div
+                  key={account.username}
+                  className="flex items-center gap-3 rounded-xl bg-surface-2/45 px-3 py-2 text-xs"
+                >
+                  <span
+                    className={
+                      onlineUsers.includes(name) ? "text-primary" : "text-muted-foreground"
+                    }
+                  >
+                    ●
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-semibold">{name}</div>
+                    <div className="truncate text-[10px] text-muted-foreground">
+                      @{account.username} · {account.profile.gameCode}
+                    </div>
+                  </div>
+                  {!isFriend ? (
+                    <Button size="sm" onClick={() => sendFriendRequest(name)}>
+                      <UserPlus className="h-3.5 w-3.5" /> 加好友
+                    </Button>
+                  ) : null}
+                  <Button size="sm" variant="outline" onClick={() => openDirectChat(name)}>
+                    <MessageCircle className="h-3.5 w-3.5" /> 私聊
+                  </Button>
+                </div>
+              );
+            })}
+          {playerQuery.trim() &&
+          !accounts.some((account) =>
+            `${account.username} ${account.profile.trainerName} ${account.profile.gameCode}`
+              .toLowerCase()
+              .includes(playerQuery.trim().toLowerCase()),
+          ) ? (
+            <p className="text-xs text-muted-foreground">没有找到匹配玩家。</p>
+          ) : null}
+        </div>
+        {!accounts.length ? (
+          <p className="text-xs text-muted-foreground">
+            当前还没有其他注册玩家。让朋友先注册账号后，就能在这里搜索并添加。
+          </p>
+        ) : null}
       </Card>
 
       <Card className="space-y-3">

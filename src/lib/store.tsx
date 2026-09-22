@@ -772,6 +772,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     removeStored("raid-nexus-auth");
     setAuthUser(null);
     setProfileState(defaultProfile);
+    setDirectChatTarget(null);
   };
 
   const toggleFrozenAccount = (username: string) => {
@@ -931,6 +932,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         try {
           const next = JSON.parse(event.newValue) as unknown;
           if (Array.isArray(next)) setBillingRecords(next as BillingRecord[]);
+        } catch {
+          /* ignore malformed sync */
+        }
+      }
+      if (event.key === "raid-nexus-security-logs" && event.newValue) {
+        try {
+          const next = JSON.parse(event.newValue) as unknown;
+          if (Array.isArray(next)) setSecurityLogs(next as SecurityLog[]);
+        } catch {
+          /* ignore malformed sync */
+        }
+      }
+      if (event.key === "raid-nexus-friend-requests" && event.newValue) {
+        try {
+          const next = JSON.parse(event.newValue) as unknown;
+          if (Array.isArray(next)) setFriendRequests(next as FriendRequest[]);
+        } catch {
+          /* ignore malformed sync */
+        }
+      }
+      if (event.key === "raid-nexus-chat-messages" && event.newValue) {
+        try {
+          const next = JSON.parse(event.newValue) as unknown;
+          if (Array.isArray(next)) setChatMessages(next as ChatMessage[]);
         } catch {
           /* ignore malformed sync */
         }
@@ -1464,14 +1489,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       sendFriendRequest: (username) => {
         const target = username.trim();
         if (!target || target === profile.trainerName) return;
-        if (
-          !accounts.some(
-            (account) => account.profile.trainerName === target || account.username === target,
-          )
-        ) {
-          showToast("未找到该玩家");
-          return;
-        }
         if (
           friendRequests.some(
             (request) =>
